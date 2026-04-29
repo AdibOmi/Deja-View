@@ -75,3 +75,48 @@ button:hover {
   font-size: 15px;
   min-height: 40px;
 }
+
+.deleteBtn {
+  background: #444;
+  margin-top: 8px;
+}
+
+.deleteBtn:hover {
+  background: #666;
+}
+
+textarea {
+  width: 100%;
+  min-height: 70px;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  resize: vertical;
+  margin-top: 8px;
+  box-sizing: border-box;
+}
+
+.movieCard input {
+  width: 100%;
+  margin-top: 8px;
+  box-sizing: border-box;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.buttonRow button {
+  flex: 1;
+}
+
+.homeBtn {
+  background: #333;
+  margin-bottom: 25px;
+}
+
+.homeBtn:hover {
+  background: #555;
+}

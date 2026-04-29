@@ -10,12 +10,14 @@ from app.db.db import engine, SessionLocal
 from app.db.db import Base
 from app.schemas.movie import MovieCreate, MovieOut
 from app.models.movie import Movie
+from app.schemas.movie import MovieUpdate
 
 from sqlalchemy.exc import IntegrityError
 
 from fastapi.middleware.cors import CORSMiddleware
 #for React to call FastAPI
 from pydantic import BaseModel
+
 
 
 app=FastAPI()
@@ -121,6 +123,7 @@ def get_movies():
                         "imdb_id": m.imdb_id,
                         "title": m.title,
                         "poster": m.poster,
+                        "imdb_rating": m.imdb_rating,
                         "my_rating": m.my_rating,
                         "my_comment": m.my_comment
                     }
@@ -134,19 +137,21 @@ def get_movies():
 
 
 
-@app.delete("/movies/{movie_list}")
-def delete_movie(movie_id:int):
+@app.delete("/movies/{movie_id}")
+def delete_movie(movie_id: int):
     db = SessionLocal()
     try:
-        m=db.query(Movie).filter(Movie.id == movie_id).first()
-        if not m:
+        movie = db.query(Movie).filter(Movie.id == movie_id).first()
+
+        if not movie:
             raise HTTPException(status_code=404, detail="Movie not found")
-        db.delete(m)
+
+        db.delete(movie)
         db.commit()
-        return{"message":"deleted"}
+
+        return {"message": "Movie deleted successfully"}
     finally:
         db.close()
-
 
 @app.get("/movies/{imdb_id}")
 def get_movie_details(imdb_id: str):
@@ -159,7 +164,7 @@ def get_movie_details(imdb_id: str):
     return data
 
 @app.get("/saved/{movie_id}")
-def get_saved_movie(movie_id, int):
+def get_saved_movie(movie_id: int):
     db = SessionLocal()
     try:
         m = db.query(Movie).filter(Movie.id == movie_id).first()
@@ -176,7 +181,34 @@ def get_saved_movie(movie_id, int):
             "director": m.director,
             "actors": m.actors,
             "plot": m.plot,
-            "imdb_rating": m.imdb_rating, 
+            "imdb_rating": m.imdb_rating,
+            "my_rating": m.my_rating,
+            "my_comment": m.my_comment
         }
+    finally:
+        db.close()
+
+
+@app.patch("/movies/{movie_id}")
+def update_movie(movie_id: int, payload: MovieUpdate):
+    db = SessionLocal()
+    try:
+        movie = db.query(Movie).filter(Movie.id == movie_id).first()
+
+        if not movie:
+            raise HTTPException(status_code=404, detail="Movie not found")
+
+        movie.my_rating = payload.my_rating
+        movie.my_comment = payload.my_comment
+
+        db.commit()
+        db.refresh(movie)
+
+        return {
+            "id": movie.id,
+            "my_rating": movie.my_rating,
+            "my_comment": movie.my_comment,
+        }
+
     finally:
         db.close()

@@ -1,6 +1,6 @@
 //done by me. 16th March
 
-const BASE = "hhtp://127.0.0.8000"
+const BASE = "http://127.0.0.1:8000";
 
 export async function searchMovies(query){
     const res = await fetch(`${BASE}/search?query=${encodedURIComponent(query)}`);
@@ -22,14 +22,22 @@ export async function addMovie(imdb_id){
     });
     if (!res.ok) throw new Error("Failed to add movie");
 }
+const BASE = "http://127.0.0.1:8000";
 
-export async function updateMovie(movieId, payload){
-    const res = await fetch(`${BASE}/movies/${movieId}`, {
-        method: "PATCH",
-        headers: {"Content-Type": "application/json"};
-        body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error("Failed to update movie");
+export async function updateMovie(movieId, payload) {
+  const res = await fetch(`${BASE}/movies/${movieId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to update movie");
+  }
+
+  return res.json();
 }
 
 export async function deleteMovie(movieId){
