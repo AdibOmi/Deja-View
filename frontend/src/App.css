@@ -77,13 +77,24 @@ button:hover {
 }
 
 .deleteBtn {
-  background: #444;
+  background: #ab1919;
   margin-top: 8px;
 }
 
 .deleteBtn:hover {
-  background: #666;
+  background: #671010;
 }
+
+.editBtn{
+    background: #444;
+     margin-top: 8px;
+}
+
+.editBtn:hover{
+background: #333131;
+
+}
+
 
 textarea {
   width: 100%;
@@ -113,10 +124,11 @@ textarea {
 }
 
 .homeBtn {
-  background: #333;
+  background: #474747;
   margin-bottom: 25px;
 }
 
 .homeBtn:hover {
-  background: #555;
+  background: #363636;
 }
+

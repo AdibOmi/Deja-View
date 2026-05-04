@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-
 const API = "http://127.0.0.1:8000";
 
 function App() {
@@ -17,6 +16,25 @@ function App() {
     const data = await res.json();
     setSearchResults(data.movies || []);
   }
+
+  const [watchlistMovies, setWatchlistMovies] = useState([]);
+const [editingWatchId, setEditingWatchId] = useState(null);
+const [editWatchComment, setEditWatchComment] = useState("");
+
+const startWatchEdit = (movie) => {
+  setEditingWatchId(movie.id);
+  setEditWatchComment(movie.watch_comment || "");
+};
+
+const saveWatchEdit = async (id) => {
+  // call backend API here
+  setEditingWatchId(null);
+};
+
+const deleteWatchMovie = async (id) => {
+  // call delete API
+};
+
 
   async function saveMovie(movie) {
     alert("Movie saved!")
@@ -77,35 +95,89 @@ function App() {
 
 
 
-async function saveEdit(movieId) {
-  try {
-    const payload = {
-      my_rating: Number(editRating),
-      my_comment: editComment,
-    };
+// async function saveEdit(movieId) {
+//   alert("Save clicked");
+//   console.log("movieId:", movieId);
+//   console.log("rating:", editRating);
+//   console.log("comment:", editComment);
 
-    await updateMovie(movieId, payload);
+//   try {
+//     const payload = {
+//       my_rating: Number(editRating),
+//       my_comment: editComment,
+//     };
+
+//     await updateMovie(movieId, payload);
+
+//     setSavedMovies((prevMovies) =>
+//       prevMovies.map((movie) =>
+//         movie.id === movieId
+//           ? {
+//               ...movie,
+//               my_rating: payload.my_rating,
+//               my_comment: payload.my_comment,
+//             }
+//           : movie
+//       )
+//     );
+
+//     setEditingMovieId(null);
+//     setEditRating("");
+//     setEditComment("");
+//   } catch (error) {
+//     console.log("Edit save failed:", error);
+//   }
+// }
+
+
+//temp
+async function saveEdit(movieId) {
+  alert("Save clicked");
+
+ const payload = {
+  rating: Number(editRating),
+  comment: editComment,
+};
+
+  console.log("Sending:", movieId, payload);
+
+  try {
+    const updatedMovie = await updateMovie(movieId, payload);
+    console.log("Backend returned:", updatedMovie);
 
     setSavedMovies((prevMovies) =>
-      prevMovies.map((movie) =>
-        movie.id === movieId
-          ? {
-              ...movie,
-              my_rating: payload.my_rating,
-              my_comment: payload.my_comment,
-            }
-          : movie
-      )
-    );
-
+  prevMovies.map((movie) =>
+    movie.id === movieId
+      ? {
+          ...movie,
+          my_rating: payload.rating,
+          my_comment: payload.comment,
+        }
+      : movie
+  )
+);
     setEditingMovieId(null);
-    setEditRating("");
-    setEditComment("");
   } catch (error) {
-    console.log("Edit save failed:", error);
+    console.error("Save failed:", error);
+    alert(error.message);
   }
 }
 
+async function updateMovie(movieId, payload) {
+  const res = await fetch(`${API}/movies/${movieId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to update movie");
+  }
+
+  return res.json();
+}
   return (
   <div className="app">
     <h1>Deja View</h1>
@@ -135,7 +207,7 @@ async function saveEdit(movieId) {
       ))}
     </div>
 
-    <h2>Saved Movies</h2>
+    <h2>Watched Movies</h2>
     <div className="movieGrid">
       {savedMovies.map((movie) => (
         <div className="movieCard" key={movie.id}>
@@ -178,7 +250,7 @@ async function saveEdit(movieId) {
               <p>Review: {movie.my_comment || "No review yet"}</p>
 
               <div className="buttonRow">
-                <button onClick={() => startEdit(movie)}>
+                <button className="editBtn" onClick={() => startEdit(movie)}>
                   Edit
                 </button>
 
@@ -195,8 +267,73 @@ async function saveEdit(movieId) {
         </div>
       ))}
     </div>
+
+    <h2>Movies To Watch</h2>
+<div className="movieGrid">
+  {watchlistMovies.map((movie) => (
+    <div className="movieCard" key={movie.id}>
+      <img src={movie.poster} alt={movie.title} />
+      <h3>{movie.title}</h3>
+
+      <p>IMDb Rating: {movie.imdb_rating || "N/A"}</p>
+
+      {editingWatchId === movie.id ? (
+        <>
+          <textarea
+            value={editWatchComment}
+            onChange={(e) => setEditWatchComment(e.target.value)}
+            placeholder="Why do you want to watch this?"
+          />
+
+          <div className="buttonRow">
+            <button
+              type="button"
+              onClick={() => saveWatchEdit(movie.id)}
+            >
+              Save
+            </button>
+
+            <button
+              type="button"
+              className="deleteBtn"
+              onClick={() => setEditingWatchId(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>
+            Note: {movie.watch_comment || "No note added"}
+          </p>
+
+          <div className="buttonRow">
+            <button
+              className="editBtn"
+              onClick={() => startWatchEdit(movie)}
+            >
+              Edit
+            </button>
+
+            <button
+              type="button"
+              className="deleteBtn"
+              onClick={() => deleteWatchMovie(movie.id)}
+            >
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  ))}
+</div>
+
   </div>
   );
+
+  
 }
 
 export default App;
