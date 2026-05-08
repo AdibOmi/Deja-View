@@ -27,14 +27,62 @@ const startWatchEdit = (movie) => {
 };
 
 const saveWatchEdit = async (id) => {
-  // call backend API here
+  await fetch(`${API}/watchlist/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      watch_comment: editWatchComment,
+    }),
+  });
+
+  setWatchlistMovies((prev) =>
+    prev.map((movie) =>
+      movie.id === id
+        ? { ...movie, watch_comment: editWatchComment }
+        : movie
+    )
+  );
+
   setEditingWatchId(null);
 };
 
 const deleteWatchMovie = async (id) => {
-  // call delete API
+  const confirmDelete = window.confirm(
+    "Delete this movie from Watch Later?"
+  );
+
+  if (!confirmDelete) return;
+
+  await fetch(`${API}/watchlist/${id}`, {
+    method: "DELETE",
+  });
+
+  setWatchlistMovies((prev) =>
+    prev.filter((movie) => movie.id !== id)
+  );
 };
 
+async function saveWatchLater(movie) {
+  alert("Added to watch later!");
+
+  await fetch(`${API}/watchlist`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(movie),
+  });
+
+  loadWatchlistMovies();
+}
+async function loadWatchlistMovies() {
+  const response = await fetch(`${API}/watchlist`);
+  const data = await response.json();
+
+  setWatchlistMovies(data.movies);
+}
 
   async function saveMovie(movie) {
     alert("Movie saved!")
@@ -73,64 +121,18 @@ const deleteWatchMovie = async (id) => {
     setEditComment(movie.my_comment || "");
   }
 
-  // async function saveEdit(id) {
-  //   await fetch(`${API}/movies/${id}`, {
-  //     method: "PUT",
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //     },
-  //     body: JSON.stringify({
-  //       my_rating: editRating,
-  //       my_comment: editComment,
-  //     }),
-  //   });
-
-  //   setEditingMovieId(null);
-  //   loadSavedMovies();
-  // }
-
+  
   useEffect(() => {
     loadSavedMovies();
   }, []);
 
 
-
-// async function saveEdit(movieId) {
-//   alert("Save clicked");
-//   console.log("movieId:", movieId);
-//   console.log("rating:", editRating);
-//   console.log("comment:", editComment);
-
-//   try {
-//     const payload = {
-//       my_rating: Number(editRating),
-//       my_comment: editComment,
-//     };
-
-//     await updateMovie(movieId, payload);
-
-//     setSavedMovies((prevMovies) =>
-//       prevMovies.map((movie) =>
-//         movie.id === movieId
-//           ? {
-//               ...movie,
-//               my_rating: payload.my_rating,
-//               my_comment: payload.my_comment,
-//             }
-//           : movie
-//       )
-//     );
-
-//     setEditingMovieId(null);
-//     setEditRating("");
-//     setEditComment("");
-//   } catch (error) {
-//     console.log("Edit save failed:", error);
-//   }
-// }
+  useEffect(() => {
+  loadSavedMovies();
+  loadWatchlistMovies();
+}, []);
 
 
-//temp
 async function saveEdit(movieId) {
   alert("Save clicked");
 
@@ -178,6 +180,26 @@ async function updateMovie(movieId, payload) {
 
   return res.json();
 }
+
+async function moveToWatched(movie) {
+  const confirmMove = window.confirm(
+    "Move this movie to Watched?"
+  );
+
+  if (!confirmMove) return;
+
+  await fetch(`${API}/watchlist/${movie.id}/watched`, {
+    method: "PATCH",
+  });
+
+  loadSavedMovies();
+  loadWatchlistMovies();
+}
+
+
+
+
+
   return (
   <div className="app">
     <h1>Deja View</h1>
@@ -188,13 +210,20 @@ async function updateMovie(movieId, payload) {
     </button>
 
     <div className="searchBox">
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search for a movie..."
-      />
-      <button onClick={searchMovies}>Search</button>
-    </div>
+  <input
+    value={query}
+    onChange={(e) => setQuery(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        searchMovies();
+      }
+    }}
+    placeholder="Search for a movie..."
+  />
+
+  <button onClick={searchMovies}>Search</button>
+</div>
+
 
     <h2>Search Results</h2>
     <div className="movieGrid">
@@ -202,10 +231,24 @@ async function updateMovie(movieId, payload) {
         <div className="movieCard" key={movie.imdb_id}>
           <img src={movie.poster} alt={movie.title} />
           <h3>{movie.title}</h3>
-          <button onClick={() => saveMovie(movie)}>Save</button>
+          <div className="buttonRow">
+  <button type="button" onClick={() => saveMovie(movie)}>
+    Save
+  </button>
+
+  <button
+    type="button"
+    className="watchLaterBtn"
+    onClick={() => saveWatchLater(movie)}
+  >
+    Watch Later
+  </button>
+</div>
         </div>
       ))}
     </div>
+
+
 
     <h2>Watched Movies</h2>
     <div className="movieGrid">
@@ -234,7 +277,7 @@ async function updateMovie(movieId, payload) {
                 <button type="button" onClick={() => saveEdit(movie.id)}>
                   Save
                 </button>
-
+                 
                 <button
                   type="button"
                   className="deleteBtn"
@@ -246,12 +289,12 @@ async function updateMovie(movieId, payload) {
             </>
           ) : (
             <>
-              <p>Your Rating: {movie.my_rating || "Not rated yet"}</p>
-              <p>Review: {movie.my_comment || "No review yet"}</p>
+              <p>Your Rating: {movie.my_rating || "___"}</p>
+              <p>Note: {movie.my_comment || "_____"}</p>
 
               <div className="buttonRow">
                 <button className="editBtn" onClick={() => startEdit(movie)}>
-                  Edit
+                  Rate
                 </button>
 
                 <button
@@ -259,7 +302,7 @@ async function updateMovie(movieId, payload) {
                   className="deleteBtn"
                   onClick={() => deleteMovie(movie.id)}
                 >
-                  Delete
+                  x
                 </button>
               </div>
             </>
@@ -267,6 +310,9 @@ async function updateMovie(movieId, payload) {
         </div>
       ))}
     </div>
+
+
+
 
     <h2>Movies To Watch</h2>
 <div className="movieGrid">
@@ -305,25 +351,33 @@ async function updateMovie(movieId, payload) {
       ) : (
         <>
           <p>
-            Note: {movie.watch_comment || "No note added"}
+          {movie.watch_comment || "_____"}
           </p>
 
-          <div className="buttonRow">
-            <button
-              className="editBtn"
-              onClick={() => startWatchEdit(movie)}
-            >
-              Edit
-            </button>
+          <div className="watchButtons">
+  <button
+    className="editBtn"
+    onClick={() => startWatchEdit(movie)}
+  >
+    Note
+  </button>
 
-            <button
-              type="button"
-              className="deleteBtn"
-              onClick={() => deleteWatchMovie(movie.id)}
-            >
-              Delete
-            </button>
-          </div>
+  <button
+    type="button"
+    className="watchBtn"
+    onClick={() => moveToWatched(movie)}
+  >
+    Watched
+  </button>
+
+  <button
+    type="button"
+    className="deleteBtn"
+    onClick={() => deleteWatchMovie(movie.id)}
+  >
+    x
+  </button>
+</div>
         </>
       )}
     </div>

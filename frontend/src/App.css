@@ -16,10 +16,16 @@ h1 {
   margin-bottom: 5px;
 }
 
+h2 {
+  margin-top: 35px;
+}
+
 .subtitle {
   color: #aaa;
   margin-bottom: 30px;
 }
+
+/* Search */
 
 .searchBox {
   display: flex;
@@ -27,16 +33,29 @@ h1 {
   margin-bottom: 30px;
 }
 
-input {
-  flex: 1;
-  padding: 14px;
-  border-radius: 8px;
+input,
+textarea {
+  width: 100%;
+  box-sizing: border-box;
   border: none;
+  border-radius: 8px;
   font-size: 16px;
 }
 
+input {
+  padding: 14px;
+}
+
+textarea {
+  min-height: 70px;
+  padding: 10px;
+  resize: vertical;
+  margin-top: 8px;
+}
+
+/* Buttons */
+
 button {
-  padding: 12px 18px;
   border: none;
   border-radius: 8px;
   background: #e50914;
@@ -48,6 +67,36 @@ button {
 button:hover {
   background: #b20710;
 }
+
+.homeBtn {
+  padding: 12px 18px;
+  background: #474747;
+  margin-bottom: 25px;
+}
+
+.homeBtn:hover {
+  background: #363636;
+}
+
+.editBtn,
+.watchLaterBtn {
+  background: #444;
+}
+
+.editBtn:hover,
+.watchLaterBtn:hover {
+  background: #333;
+}
+
+.deleteBtn {
+  background: #ab1919;
+}
+
+.deleteBtn:hover {
+  background: #671010;
+}
+
+/* Movie Cards */
 
 .movieGrid {
   display: grid;
@@ -76,59 +125,59 @@ button:hover {
   min-height: 40px;
 }
 
-.deleteBtn {
-  background: #ab1919;
-  margin-top: 8px;
-}
-
-.deleteBtn:hover {
-  background: #671010;
-}
-
-.editBtn{
-    background: #444;
-     margin-top: 8px;
-}
-
-.editBtn:hover{
-background: #333131;
-
-}
-
-
-textarea {
-  width: 100%;
-  min-height: 70px;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  resize: vertical;
-  margin-top: 8px;
-  box-sizing: border-box;
-}
-
 .movieCard input {
-  width: 100%;
   margin-top: 8px;
-  box-sizing: border-box;
 }
+
+/* General Button Row */
 
 .buttonRow {
   display: flex;
+  justify-content: center;
+  align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
   margin-top: 10px;
 }
 
 .buttonRow button {
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+/* Saved Movies Buttons */
+
+.savedButtons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.savedButtons button {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+/* Watch Later Buttons */
+
+.watchButtons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.watchButtons .editBtn,
+.watchButtons .watchBtn {
   flex: 1;
+  padding: 8px 10px;
+  font-size: 14px;
 }
 
-.homeBtn {
-  background: #474747;
-  margin-bottom: 25px;
+.watchButtons .deleteBtn {
+  width: 38px;
+  min-width: 38px;
+  padding: 8px 0;
+  font-size: 14px;
 }
-
-.homeBtn:hover {
-  background: #363636;
-}
-

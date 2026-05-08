@@ -18,6 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 #for React to call FastAPI
 from pydantic import BaseModel
 
+from fastapi import HTTPException
+
+
 
 
 app=FastAPI()
@@ -67,10 +70,6 @@ def search_movie(query: str):
     return {"movies": movie_list}
 
 
-
-
-from fastapi import HTTPException
-
 @app.post("/select")
 def select_movie(movie_data: dict):
     db = SessionLocal()
@@ -99,6 +98,7 @@ def select_movie(movie_data: dict):
             actors=data.get("Actors"),
             plot=data.get("Plot"),
             imdb_rating=data.get("imdbRating"),
+            is_watched=True,
         )
 
         db.add(m)
@@ -115,7 +115,7 @@ def select_movie(movie_data: dict):
 def get_movies():
     db = SessionLocal()
     try:
-        movie_list = db.query(Movie).order_by(Movie.id.desc()).all()
+        movie_list = db.query(Movie).filter(Movie.is_watched == True).order_by(Movie.id.desc()).all()
         return {
                 "movies":[
                     {
@@ -209,6 +209,93 @@ def update_movie(movie_id: int, payload: MovieUpdate):
             "my_rating": movie.my_rating,
             "my_comment": movie.my_comment,
         }
+
+    finally:
+        db.close()
+
+@app.post("/watchlist")
+def add_to_watchlist(movie_data: dict):
+    db = SessionLocal()
+    try:
+        imdb_id = movie_data["imdb_id"]
+
+        existing = db.query(Movie).filter(Movie.imdb_id == imdb_id).first()
+        if existing:
+            existing.is_watched = False
+            db.commit()
+            return {"message": "moved_to_watchlist", "movie_id": existing.id}
+
+        url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&i={imdb_id}&plot=full"
+        r = requests.get(url)
+        data = r.json()
+
+        m = Movie(
+            imdb_id=imdb_id,
+            title=data.get("Title"),
+            poster=data.get("Poster"),
+            year=data.get("Year"),
+            runtime=data.get("Runtime"),
+            genre=data.get("Genre"),
+            director=data.get("Director"),
+            actors=data.get("Actors"),
+            plot=data.get("Plot"),
+            imdb_rating=data.get("imdbRating"),
+            is_watched=False,
+        )
+
+        db.add(m)
+        db.commit()
+        db.refresh(m)
+
+        return {"message": "added_to_watchlist", "movie_id": m.id}
+
+    finally:
+        db.close()
+
+@app.get("/watchlist")
+def get_watchlist():
+    db = SessionLocal()
+
+    try:
+        movie_list = (
+            db.query(Movie)
+            .filter(Movie.is_watched == False)
+            .order_by(Movie.id.desc())
+            .all()
+        )
+
+        return {
+            "movies": [
+                {
+                    "id": m.id,
+                    "imdb_id": m.imdb_id,
+                    "title": m.title,
+                    "poster": m.poster,
+                    "imdb_rating": m.imdb_rating,
+                    "my_comment": m.my_comment,
+                }
+                for m in movie_list
+            ]
+        }
+
+    finally:
+        db.close()
+
+
+@app.patch("/watchlist/{movie_id}/watched")
+def move_watchlist_to_watched(movie_id: int):
+    db = SessionLocal()
+    try:
+        movie = db.query(Movie).filter(Movie.id == movie_id).first()
+
+        if not movie:
+            raise HTTPException(status_code=404, detail="Movie not found")
+
+        movie.is_watched = True
+        db.commit()
+        db.refresh(movie)
+
+        return {"message": "moved_to_watched", "movie_id": movie.id}
 
     finally:
         db.close()
