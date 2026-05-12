@@ -23,7 +23,7 @@ class MovieOut(BaseModel):
 
 
 class MovieUpdate(BaseModel):
-    my_rating: int | None = None
+    my_rating: float | None = None
     my_comment: str | None = None
 
 

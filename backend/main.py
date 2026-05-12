@@ -241,10 +241,13 @@ def add_to_watchlist(movie_data: dict):
             plot=data.get("Plot"),
             imdb_rating=data.get("imdbRating"),
             is_watched=False,
+            #  my_rating=m.my_rating,
+            #  my_comment=m.my_comment,
         )
 
         db.add(m)
         db.commit()
+
         db.refresh(m)
 
         return {"message": "added_to_watchlist", "movie_id": m.id}

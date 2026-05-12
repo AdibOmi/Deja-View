@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean
+from sqlalchemy import Column, Integer, String, Text, Boolean, Float
 from app.db.db import Base
 
 class Movie(Base):
@@ -16,6 +16,6 @@ class Movie(Base):
     imdb_rating=Column(String, nullable=True)
     plot=Column(Text, nullable=True)
     
-    my_rating = Column(Integer, nullable=True)
+    my_rating = Column(Float, nullable=True)
     my_comment = Column(Text, nullable=True)
     is_watched = Column(Boolean, default=True)
