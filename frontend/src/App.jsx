@@ -2,6 +2,19 @@ import { useEffect, useState } from "react";
 import "./App.css";
 const API = "http://127.0.0.1:8000";
 
+
+/*
+Function for clicking enter to save
+
+onChange={(e) => setQuery(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        searchMovies();
+      }
+    }}
+*/
+
+
 function App() {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -37,13 +50,13 @@ const saveWatchEdit = async (id) => {
     }),
   });
 
-  setWatchlistMovies((prev) =>
-    prev.map((movie) =>
-      movie.id === id
-        ? { ...movie, watch_comment: editWatchComment }
-        : movie
-    )
-  );
+ setWatchlistMovies((prev) =>
+  prev.map((movie) =>
+    movie.id === id
+      ? { ...movie, watch_comment: editWatchComment }
+      : movie
+  )
+);
 
   setEditingWatchId(null);
 };
@@ -65,9 +78,7 @@ const deleteWatchMovie = async (id) => {
 };
 
 async function saveWatchLater(movie) {
-  alert("Added to watch later!");
-
-  await fetch(`${API}/watchlist`, {
+  const res = await fetch(`${API}/watchlist`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -75,8 +86,15 @@ async function saveWatchLater(movie) {
     body: JSON.stringify(movie),
   });
 
-  loadWatchlistMovies();
+  if (!res.ok) {
+    alert("Failed to add to watch later");
+    return;
+  }
+
+  await loadWatchlistMovies();
+  alert("Added to watch later!");
 }
+
 async function loadWatchlistMovies() {
   const response = await fetch(`${API}/watchlist`);
   const data = await response.json();
@@ -121,10 +139,6 @@ async function loadWatchlistMovies() {
     setEditComment(movie.my_comment || "");
   }
 
-  
-  useEffect(() => {
-    loadSavedMovies();
-  }, []);
 
 
   useEffect(() => {
@@ -134,30 +148,26 @@ async function loadWatchlistMovies() {
 
 
 async function saveEdit(movieId) {
-  alert("Save clicked");
-
- const payload = {
-  rating: Number(editRating),
-  comment: editComment,
-};
-
-  console.log("Sending:", movieId, payload);
+  const payload = {
+    my_rating: editRating === "" ? null : parseFloat(editRating),
+    my_comment: editComment,
+  };
 
   try {
     const updatedMovie = await updateMovie(movieId, payload);
-    console.log("Backend returned:", updatedMovie);
 
     setSavedMovies((prevMovies) =>
-  prevMovies.map((movie) =>
-    movie.id === movieId
-      ? {
-          ...movie,
-          my_rating: payload.rating,
-          my_comment: payload.comment,
-        }
-      : movie
-  )
-);
+      prevMovies.map((movie) =>
+        movie.id === movieId
+          ? {
+              ...movie,
+              my_rating: updatedMovie.my_rating,
+              my_comment: updatedMovie.my_comment,
+            }
+          : movie
+      )
+    );
+
     setEditingMovieId(null);
   } catch (error) {
     console.error("Save failed:", error);
@@ -224,30 +234,33 @@ async function moveToWatched(movie) {
   <button onClick={searchMovies}>Search</button>
 </div>
 
-
+{searchResults.length > 0 && (
+  <>
     <h2>Search Results</h2>
     <div className="movieGrid">
       {searchResults.map((movie) => (
         <div className="movieCard" key={movie.imdb_id}>
           <img src={movie.poster} alt={movie.title} />
           <h3>{movie.title}</h3>
-          <div className="buttonRow">
-  <button type="button" onClick={() => saveMovie(movie)}>
-    Save
-  </button>
 
-  <button
-    type="button"
-    className="watchLaterBtn"
-    onClick={() => saveWatchLater(movie)}
-  >
-    Watch Later
-  </button>
-</div>
+          <div className="buttonRow">
+            <button type="button" onClick={() => saveMovie(movie)}>
+              Watched
+            </button>
+
+            <button
+              type="button"
+              className="watchLaterBtn"
+              onClick={() => saveWatchLater(movie)}
+            >
+              Watch Later
+            </button>
+          </div>
         </div>
       ))}
     </div>
-
+  </>
+)}
 
 
     <h2>Watched Movies</h2>
@@ -260,17 +273,30 @@ async function moveToWatched(movie) {
           <p>IMDb Rating: {movie.imdb_rating || "N/A"}</p>
 
           {editingMovieId === movie.id ? (
-            <>
-              <input
-                value={editRating}
+              <>
+                <input
+                value={editRating || ""}
                 onChange={(e) => setEditRating(e.target.value)}
                 placeholder="My rating"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    document.getElementById(`comment-${movie.id}`)?.focus();
+                  }
+                }}
               />
 
               <textarea
-                value={editComment}
+                id={`comment-${movie.id}`}
+                value={editComment || ""}
                 onChange={(e) => setEditComment(e.target.value)}
                 placeholder="My thoughts"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveEdit(movie.id);
+                  }
+                }}
               />
 
               <div className="buttonRow">
@@ -289,8 +315,8 @@ async function moveToWatched(movie) {
             </>
           ) : (
             <>
-              <p>Your Rating: {movie.my_rating || "___"}</p>
-              <p>Note: {movie.my_comment || "_____"}</p>
+              <p>My Rating: {movie.my_rating || "___"}</p>
+              <p className="movie-thoughts">Thoughts: {movie.my_comment || "_____"}</p>
 
               <div className="buttonRow">
                 <button className="editBtn" onClick={() => startEdit(movie)}>
@@ -314,11 +340,19 @@ async function moveToWatched(movie) {
 
 
 
+
+
     <h2>Movies To Watch</h2>
+
 <div className="movieGrid">
   {watchlistMovies.map((movie) => (
     <div className="movieCard" key={movie.id}>
-      <img src={movie.poster} alt={movie.title} />
+      <img
+        src={movie.poster || "https://via.placeholder.com/300x450?text=No+Poster"}
+        alt={movie.title}
+        className="moviePoster"
+      />
+
       <h3>{movie.title}</h3>
 
       <p>IMDb Rating: {movie.imdb_rating || "N/A"}</p>
@@ -326,16 +360,13 @@ async function moveToWatched(movie) {
       {editingWatchId === movie.id ? (
         <>
           <textarea
-            value={editWatchComment}
+            value={editWatchComment || ""}
             onChange={(e) => setEditWatchComment(e.target.value)}
             placeholder="Why do you want to watch this?"
           />
 
           <div className="buttonRow">
-            <button
-              type="button"
-              onClick={() => saveWatchEdit(movie.id)}
-            >
+            <button type="button" onClick={() => saveWatchEdit(movie.id)}>
               Save
             </button>
 
@@ -350,45 +381,41 @@ async function moveToWatched(movie) {
         </>
       ) : (
         <>
-          <p>
-          {movie.watch_comment || "_____"}
+          <p className="movie-thoughts">
+            {movie.watch_comment || "_____"}
           </p>
 
           <div className="watchButtons">
-  <button
-    className="editBtn"
-    onClick={() => startWatchEdit(movie)}
-  >
-    Note
-  </button>
+            <button
+              type="button"
+              className="editBtn"
+              onClick={() => startWatchEdit(movie)}
+            >
+              Note
+            </button>
 
-  <button
-    type="button"
-    className="watchBtn"
-    onClick={() => moveToWatched(movie)}
-  >
-    Watched
-  </button>
+            <button
+              type="button"
+              className="watchBtn"
+              onClick={() => moveToWatched(movie)}
+            >
+              Watched
+            </button>
 
-  <button
-    type="button"
-    className="deleteBtn"
-    onClick={() => deleteWatchMovie(movie.id)}
-  >
-    x
-  </button>
-</div>
+            <button
+              type="button"
+              className="deleteBtn"
+              onClick={() => deleteWatchMovie(movie.id)}
+            >
+              x
+            </button>
+          </div>
         </>
       )}
     </div>
-  ))}
-</div>
-
+       ))}
+    </div>
   </div>
   );
-
-  
 }
-
 export default App;
-

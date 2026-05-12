@@ -276,6 +276,7 @@ def get_watchlist():
                     "poster": m.poster,
                     "imdb_rating": m.imdb_rating,
                     "my_comment": m.my_comment,
+                    "watch_comment": m.watch_comment,
                 }
                 for m in movie_list
             ]
@@ -299,6 +300,27 @@ def move_watchlist_to_watched(movie_id: int):
         db.refresh(movie)
 
         return {"message": "moved_to_watched", "movie_id": movie.id}
+
+    finally:
+        db.close()
+
+
+@app.patch("/watchlist/{movie_id}")
+def update_watchlist_note(movie_id: int, update: MovieUpdate):
+    db = SessionLocal()
+    try:
+        movie = db.query(Movie).filter(Movie.id == movie_id).first()
+
+        if not movie:
+            raise HTTPException(status_code=404, detail="Movie not found")
+
+        if update.watch_comment is not None:
+            movie.watch_comment = update.watch_comment
+
+        db.commit()
+        db.refresh(movie)
+
+        return movie
 
     finally:
         db.close()

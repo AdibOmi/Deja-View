@@ -25,7 +25,7 @@ class MovieOut(BaseModel):
 class MovieUpdate(BaseModel):
     my_rating: float | None = None
     my_comment: str | None = None
-
+    watch_comment: str | None = None
 
 
     #backend returns movie data
