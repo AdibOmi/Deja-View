@@ -1,0 +1,287 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: white;
+}
+
+.app {
+  max-width: 1100px;
+  margin: auto;
+  padding: 30px;
+}
+
+h1 {
+  font-size: 42px;
+  margin-bottom: 5px;
+}
+
+h2 {
+  margin-top: 55px;
+  margin-bottom: 18px;
+}
+
+.subtitle {
+  color: #aaa;
+  margin-bottom: 30px;
+}
+
+/* =========================
+   Search
+========================= */
+
+.searchBox {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.searchBox input {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.searchBox button {
+  background-color: #c9101a;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.searchBox button:hover {
+  background-color: #b20710;
+  transform: scale(1.03);
+}
+
+/* =========================
+   General Inputs
+========================= */
+
+textarea,
+input {
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+textarea {
+  width: 100%;
+  min-height: 70px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  resize: vertical;
+  margin-top: 8px;
+}
+
+/* =========================
+   General Buttons
+========================= */
+
+button {
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+button:hover {
+  transform: scale(1.05);
+}
+
+/* =========================
+   Button Rows
+========================= */
+
+.buttonRow {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  justify-content: center;
+}
+
+.buttonRow button {
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+/* Recommendation/Search buttons */
+
+.watchedBtn {
+  background: #c9101a;
+  color: white;
+}
+
+.watchLaterBtn {
+  background: #2a2a2a;
+  color: white;
+}
+
+/* Watched section */
+
+.editBtn {
+  background: #2a2a2a;
+  color: white;
+}
+
+.watchBtn {
+  background: #2a2a2a;
+  color: white;
+}
+
+.deleteBtn {
+  background: #c9101a;
+  color: white;
+  width: 42px;
+  min-width: 42px;
+  height: 37px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+}
+
+/* =========================
+   Movie Rows
+========================= */
+
+.movieGrid {
+  display: flex;
+  gap: 22px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px 0 35px;
+  margin-bottom: 70px;
+}
+
+.movieGrid::-webkit-scrollbar {
+  height: 8px;
+}
+
+.movieGrid::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 20px;
+}
+
+/* =========================
+   Cards
+========================= */
+
+.movieCard {
+  min-width: 210px;
+  max-width: 210px;
+  background: #181818;
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.movieCard img {
+  width: 100%;
+  height: 310px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.movie-thoughts {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-height: 90px;
+  overflow-y: auto;
+}
+
+/* =========================
+   Auto Scroll
+========================= */
+
+.movieTrack {
+  display: flex;
+  gap: 22px;
+  animation: scrollMovies 15s linear infinite;
+}
+
+.movieTrack:hover {
+  animation-play-state: paused;
+}
+
+@keyframes scrollMovies {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* =========================
+   Watchlist Buttons
+========================= */
+
+.watchButtons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.watchButtons button {
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.watchButtons .editBtn,
+.watchButtons .watchBtn {
+  flex: 1;
+}
+
+.watchButtons .deleteBtn {
+  width: 42px;
+  min-width: 42px;
+  height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =========================
+   Responsive
+========================= */
+
+@media (max-width: 600px) {
+  .app {
+    padding: 18px;
+  }
+
+  h1 {
+    font-size: 32px;
+  }
+
+  .searchBox {
+    flex-direction: column;
+  }
+
+  .movieCard img {
+    height: 220px;
+  }
+
+  .watchButtons {
+    flex-direction: column;
+  }
+
+  .watchButtons button,
+  .watchButtons .deleteBtn {
+    width: 100%;
+  }
+}

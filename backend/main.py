@@ -60,14 +60,29 @@ def search_movie(query: str):
         return {"movies":[]}
     
     movie_list = []
+
     for m in data["Search"]:
-        #movies returned by omdb
+
+        imdb_id = m["imdbID"]
+
+        details_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&i={imdb_id}&plot=short"
+
+        details_response = requests.get(details_url)
+
+        details = details_response.json()
+
         movie_list.append({
-            "imdb_id": m["imdbID"],
-            "title": m["Title"],
-            "poster": m["Poster"]
-        })
-    return {"movies": movie_list}
+            "imdb_id": details.get("imdbID"),
+            "title": details.get("Title"),
+            "poster": details.get("Poster"),
+            "year": details.get("Year"),
+            "runtime": details.get("Runtime"),
+            "genre": details.get("Genre"),
+            "director": details.get("Director"),
+            "actors": details.get("Actors"),
+            "plot": details.get("Plot"),
+            "imdb_rating": details.get("imdbRating"),
+    })
 
 
 @app.post("/select")
@@ -117,24 +132,28 @@ def get_movies():
     try:
         movie_list = db.query(Movie).filter(Movie.is_watched == True).order_by(Movie.id.desc()).all()
         return {
-                "movies":[
-                    {
-                        "id": m.id,
-                        "imdb_id": m.imdb_id,
-                        "title": m.title,
-                        "poster": m.poster,
-                        "imdb_rating": m.imdb_rating,
-                        "my_rating": m.my_rating,
-                        "my_comment": m.my_comment
-                    }
-                    for m in movie_list
-                ]
-                
-            }  
+            "movies": [
+                {
+                    "id": m.id,
+                    "imdb_id": m.imdb_id,
+                    "title": m.title,
+                    "poster": m.poster,
+                    "year": m.year,
+                    "runtime": m.runtime,
+                    "genre": m.genre,
+                    "director": m.director,
+                    "actors": m.actors,
+                    "plot": m.plot,
+                    "imdb_rating": m.imdb_rating,
+                    "my_rating": m.my_rating,
+                    "my_comment": m.my_comment,
+                }
+                        for m in movie_list
+            ]
+        }
 
-    finally: 
+    finally:
         db.close()
-
 
 
 @app.delete("/movies/{movie_id}")
@@ -152,6 +171,7 @@ def delete_movie(movie_id: int):
         return {"message": "Movie deleted successfully"}
     finally:
         db.close()
+
 
 @app.get("/movies/{imdb_id}")
 def get_movie_details(imdb_id: str):
@@ -274,6 +294,12 @@ def get_watchlist():
                     "imdb_id": m.imdb_id,
                     "title": m.title,
                     "poster": m.poster,
+                    "year": m.year,
+                    "runtime": m.runtime,
+                    "genre": m.genre,
+                    "director": m.director,
+                    "actors": m.actors,
+                    "plot": m.plot,
                     "imdb_rating": m.imdb_rating,
                     "my_comment": m.my_comment,
                     "watch_comment": m.watch_comment,
@@ -395,10 +421,14 @@ def get_recommendations():
                     "imdb_id": candidate.imdb_id,
                     "title": candidate.title,
                     "poster": candidate.poster,
-                    "imdb_rating": candidate.imdb_rating,
+                    "runtime": candidate.runtime,
                     "genre": candidate.genre,
+                    "director": candidate.director,
+                    "actors": candidate.actors,
+                    "plot": candidate.plot,
+                    "imdb_rating": candidate.imdb_rating,
                     "score": score,
-                    "reason": ", ".join(set(reasons))
+                    "reason": ", ".join(sorted(set(reasons))),
                 })
 
         recommendations.sort(key=lambda x: x["score"], reverse=True)

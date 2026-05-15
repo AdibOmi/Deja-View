@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import "./HomePage.css";
+
+import MovieCard from "../components/MovieCard";
 
 const API = "http://127.0.0.1:8000";
 
@@ -19,7 +22,6 @@ function HomePage() {
 
   const [query, setQuery] = useState("");
 
-
   async function loadSavedMovies() {
     const res = await fetch(`${API}/movies`);
     const data = await res.json();
@@ -29,7 +31,7 @@ function HomePage() {
   async function loadWatchlistMovies() {
     const response = await fetch(`${API}/watchlist`);
     const data = await response.json();
-    setWatchlistMovies(data.movies);
+    setWatchlistMovies(data.movies || []);
   }
 
   async function loadRecommendations() {
@@ -74,18 +76,18 @@ function HomePage() {
   }
 
   async function deleteMovie(id) {
-  const confirmDelete = window.confirm(
-    "Are you sure you want to delete this movie?"
-  );
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this movie?"
+    );
 
-  if (!confirmDelete) return;
+    if (!confirmDelete) return;
 
-  await fetch(`${API}/movies/${id}`, {
-    method: "DELETE",
-  });
+    await fetch(`${API}/movies/${id}`, {
+      method: "DELETE",
+    });
 
-  loadSavedMovies();
-}
+    loadSavedMovies();
+  }
 
   function startEdit(movie) {
     setEditingMovieId(movie.id);
@@ -129,12 +131,12 @@ function HomePage() {
     loadRecommendations();
   }
 
-  const startWatchEdit = (movie) => {
+  function startWatchEdit(movie) {
     setEditingWatchId(movie.id);
     setEditWatchComment(movie.watch_comment || "");
-  };
+  }
 
-  const saveWatchEdit = async (id) => {
+  async function saveWatchEdit(id) {
     await fetch(`${API}/watchlist/${id}`, {
       method: "PATCH",
       headers: {
@@ -154,7 +156,7 @@ function HomePage() {
     );
 
     setEditingWatchId(null);
-  };
+  }
 
   async function moveToWatched(movie) {
     await fetch(`${API}/watchlist/${movie.id}/watched`, {
@@ -165,21 +167,22 @@ function HomePage() {
     loadWatchlistMovies();
   }
 
-  const deleteWatchMovie = async (id) => {
-  const confirmDelete = window.confirm(
-    "Are you sure you want to delete this movie from Watch Later?"
-  );
+  async function deleteWatchMovie(id) {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this movie from Watch Later?"
+    );
 
-  if (!confirmDelete) return;
+    if (!confirmDelete) return;
 
-  await fetch(`${API}/watchlist/${id}`, {
-    method: "DELETE",
-  });
+    await fetch(`${API}/watchlist/${id}`, {
+      method: "DELETE",
+    });
 
-  setWatchlistMovies((prev) =>
-    prev.filter((movie) => movie.id !== id)
-  );
-};
+    setWatchlistMovies((prev) =>
+      prev.filter((movie) => movie.id !== id)
+    );
+  }
+
   return (
     <div className="app">
       <h1>Deja View</h1>
@@ -189,45 +192,45 @@ function HomePage() {
       </p>
 
       <div className="searchBox">
-  <input
-    value={query}
-    onChange={(e) => setQuery(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter" && query.trim()) {
-        navigate(`/search?q=${encodeURIComponent(query.trim())}`);
-      }
-    }}
-    placeholder="Search for a movie..."
-  />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && query.trim()) {
+              navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+            }
+          }}
+          placeholder="Search for a movie..."
+        />
 
-  <button
-  onClick={() => {
-    if (query.trim()) {
-      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
-    }
-  }}
->
-  Search
-  </button>
-</div>
+        <button
+          id="searchBtn"
+          onClick={() => {
+            if (query.trim()) {
+              navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+            }
+          }}
+        >
+          Search
+        </button>
+      </div>
 
       <h2>Recommended For You</h2>
 
       <div className="movieGrid">
         <div className="movieTrack">
           {recommendedMovies.map((movie) => (
-            <div className="movieCard" key={movie.id}>
-              <img src={movie.poster} alt={movie.title} />
-
-              <h3>{movie.title}</h3>
-
+            <MovieCard key={movie.id || movie.imdb_id} movie={movie}>
               <p>IMDb Rating: {movie.imdb_rating || "N/A"}</p>
 
               <div className="buttonRow">
                 <button
                   type="button"
                   className="watchedBtn"
-                  onClick={() => saveMovie(movie)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    saveMovie(movie);
+                  }}
                 >
                   Watched
                 </button>
@@ -235,12 +238,15 @@ function HomePage() {
                 <button
                   type="button"
                   className="watchLaterBtn"
-                  onClick={() => saveWatchLater(movie)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    saveWatchLater(movie);
+                  }}
                 >
                   Watch Later
                 </button>
               </div>
-            </div>
+            </MovieCard>
           ))}
         </div>
       </div>
@@ -249,15 +255,11 @@ function HomePage() {
 
       <div className="movieGrid">
         {savedMovies.map((movie) => (
-          <div className="movieCard" key={movie.id}>
-            <img src={movie.poster} alt={movie.title} />
-
-            <h3>{movie.title}</h3>
-
+          <MovieCard key={movie.id} movie={movie}>
             <p>IMDb Rating: {movie.imdb_rating || "N/A"}</p>
 
             {editingMovieId === movie.id ? (
-              <>
+              <div onClick={(e) => e.stopPropagation()}>
                 <input
                   value={editRating || ""}
                   onChange={(e) => setEditRating(e.target.value)}
@@ -282,7 +284,7 @@ function HomePage() {
                     Cancel
                   </button>
                 </div>
-              </>
+              </div>
             ) : (
               <>
                 <p>My Rating: {movie.my_rating || "___"}</p>
@@ -294,21 +296,27 @@ function HomePage() {
                 <div className="buttonRow">
                   <button
                     className="editBtn"
-                    onClick={() => startEdit(movie)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEdit(movie);
+                    }}
                   >
                     Rate
                   </button>
 
                   <button
                     className="deleteBtn"
-                    onClick={() => deleteMovie(movie.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteMovie(movie.id);
+                    }}
                   >
-                    x
+                    ✕
                   </button>
                 </div>
               </>
             )}
-          </div>
+          </MovieCard>
         ))}
       </div>
 
@@ -316,20 +324,14 @@ function HomePage() {
 
       <div className="movieGrid">
         {watchlistMovies.map((movie) => (
-          <div className="movieCard" key={movie.id}>
-            <img src={movie.poster} alt={movie.title} />
-
-            <h3>{movie.title}</h3>
-
+          <MovieCard key={movie.id} movie={movie}>
             <p>IMDb Rating: {movie.imdb_rating || "N/A"}</p>
 
             {editingWatchId === movie.id ? (
-              <>
+              <div onClick={(e) => e.stopPropagation()}>
                 <textarea
                   value={editWatchComment || ""}
-                  onChange={(e) =>
-                    setEditWatchComment(e.target.value)
-                  }
+                  onChange={(e) => setEditWatchComment(e.target.value)}
                   placeholder="Why do you want to watch this?"
                 />
 
@@ -345,7 +347,7 @@ function HomePage() {
                     Cancel
                   </button>
                 </div>
-              </>
+              </div>
             ) : (
               <>
                 <p className="movie-thoughts">
@@ -355,28 +357,37 @@ function HomePage() {
                 <div className="watchButtons">
                   <button
                     className="editBtn"
-                    onClick={() => startWatchEdit(movie)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startWatchEdit(movie);
+                    }}
                   >
                     Note
                   </button>
 
                   <button
                     className="watchBtn"
-                    onClick={() => moveToWatched(movie)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveToWatched(movie);
+                    }}
                   >
                     Watched
                   </button>
 
                   <button
                     className="deleteBtn"
-                    onClick={() => deleteWatchMovie(movie.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteWatchMovie(movie.id);
+                    }}
                   >
-                    x
+                    ✕
                   </button>
                 </div>
               </>
             )}
-          </div>
+          </MovieCard>
         ))}
       </div>
     </div>

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import "./SearchPage.css";
+
+import MovieCard from "../components/MovieCard";
 
 const API = "http://127.0.0.1:8000";
 
@@ -26,77 +29,87 @@ function SearchPage() {
       `${API}/search?query=${encodeURIComponent(searchText.trim())}`
     );
 
-    const data = await res.json();
-    setSearchResults(data.movies || []);
+   const data = await res.json();
+
+console.log("Search response:", data);
+
+if (!data || !Array.isArray(data.movies)) {
+  setSearchResults([]);
+  return;
+}
+
+setSearchResults(data.movies);
   }
 
   useEffect(() => {
-    searchMovies(initialQuery);
+    if (initialQuery.trim()) {
+      searchMovies(initialQuery);
+    }
   }, [initialQuery]);
 
- async function saveMovie(movie) {
-  const saveRes = await fetch(`${API}/select`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(movie),
-  });
+  async function saveMovie(movie) {
+    const saveRes = await fetch(`${API}/select`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(movie),
+    });
 
-  const saveData = await saveRes.json();
-  const movieId = saveData.movie_id;
+    const saveData = await saveRes.json();
+    const movieId = saveData.movie_id;
 
-  await fetch(`${API}/movies/${movieId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      my_rating: newRating === "" ? null : parseFloat(newRating),
-      my_comment: newComment,
-    }),
-  });
-
-  setRatingMovieId(null);
-  setNewRating("");
-  setNewComment("");
-
-  alert("Movie saved with rating!");
-}
-
- async function saveWatchLater(movie) {
-  await fetch(`${API}/watchlist`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(movie),
-  });
-
-  const saveRes = await fetch(`${API}/watchlist`);
-  const data = await saveRes.json();
-
-  const savedMovie = data.movies.find(
-    (m) => m.imdb_id === movie.imdb_id
-  );
-
-  if (savedMovie) {
-    await fetch(`${API}/watchlist/${savedMovie.id}`, {
+    await fetch(`${API}/movies/${movieId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        watch_comment: newWatchComment,
+        my_rating: newRating === "" ? null : parseFloat(newRating),
+        my_comment: newComment,
       }),
     });
+
+    setRatingMovieId(null);
+    setNewRating("");
+    setNewComment("");
+
+    alert("Movie saved with rating!");
   }
 
-  setWatchLaterMovieId(null);
-  setNewWatchComment("");
+  async function saveWatchLater(movie) {
+    await fetch(`${API}/watchlist`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(movie),
+    });
 
-  alert("Added to watch later!");
-}
+    const saveRes = await fetch(`${API}/watchlist`);
+    const data = await saveRes.json();
+
+    const savedMovie = data.movies.find(
+      (m) => m.imdb_id === movie.imdb_id
+    );
+
+    if (savedMovie) {
+      await fetch(`${API}/watchlist/${savedMovie.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          watch_comment: newWatchComment,
+        }),
+      });
+    }
+
+    setWatchLaterMovieId(null);
+    setNewWatchComment("");
+
+    alert("Added to watch later!");
+  }
 
   return (
     <div className="app">
@@ -123,15 +136,12 @@ function SearchPage() {
 
       <div className="searchResultsGrid">
         {searchResults.map((movie) => (
-          <div className="movieCard" key={movie.imdb_id}>
-            <img src={movie.poster} alt={movie.title} />
-
-            <h3>{movie.title}</h3>
-
+          <MovieCard key={movie.imdb_id} movie={movie}>
             <div className="buttonRow">
               <button
                 className="watchedBtn"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setRatingMovieId(movie.imdb_id);
                   setNewRating("");
                   setNewComment("");
@@ -140,21 +150,20 @@ function SearchPage() {
                 Watched
               </button>
 
-                <button
-                  className="watchLaterBtn"
-                  onClick={() => {
-                    setWatchLaterMovieId(movie.imdb_id);
-                    setNewWatchComment("");
-                  }}
-                >
-                  Watch Later
-                </button>
+              <button
+                className="watchLaterBtn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setWatchLaterMovieId(movie.imdb_id);
+                  setNewWatchComment("");
+                }}
+              >
+                Watch Later
+              </button>
             </div>
 
-            
-
             {ratingMovieId === movie.imdb_id && (
-              <div className="quickRateBox">
+              <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
                 <input
                   value={newRating}
                   onChange={(e) => setNewRating(e.target.value)}
@@ -186,34 +195,31 @@ function SearchPage() {
             )}
 
             {watchLaterMovieId === movie.imdb_id && (
-            <div className="quickRateBox">
-              <textarea
-                value={newWatchComment}
-                onChange={(e) => setNewWatchComment(e.target.value)}
-                placeholder="Why do you wanna watch this?"
-              />
+              <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
+                <textarea
+                  value={newWatchComment}
+                  onChange={(e) => setNewWatchComment(e.target.value)}
+                  placeholder="Why do you wanna watch this?"
+                />
 
-              <div className="buttonRow">
-                <button
-                  className="watchLaterBtn"
-                  onClick={() => saveWatchLater(movie)}
-                >
-                  Save
-                </button>
+                <div className="buttonRow">
+                  <button
+                    className="watchLaterBtn"
+                    onClick={() => saveWatchLater(movie)}
+                  >
+                    Save
+                  </button>
 
-                <button
-                  className="deleteBtn"
-                  onClick={() => setWatchLaterMovieId(null)}
-                >
-                  Cancel
-                </button>
+                  <button
+                    className="deleteBtn"
+                    onClick={() => setWatchLaterMovieId(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-
-
-
-          </div>
+            )}
+          </MovieCard>
         ))}
       </div>
     </div>
