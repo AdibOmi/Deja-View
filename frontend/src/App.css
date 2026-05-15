@@ -17,15 +17,19 @@ h1 {
 }
 
 h2 {
-  margin-top: 35px;
+  margin-top: 55px;
+  margin-bottom: 18px;
+}
+
+#searchResults {
+  font-size: 34px;
+  margin-bottom: 15px;
 }
 
 .subtitle {
   color: #aaa;
   margin-bottom: 30px;
 }
-
-
 
 /* Search */
 
@@ -55,20 +59,6 @@ textarea {
   margin-top: 8px;
 }
 
-.watchLaterBtn {
-  background-color: #555;
-  width: 110px;
-  min-width: 110px;
-  padding: 8px 0;
-}
-
-.watchLaterBtn:hover {
-  background-color: #777;
-}
-
-
-
-
 /* Buttons */
 
 button {
@@ -78,6 +68,7 @@ button {
   color: white;
   font-weight: bold;
   cursor: pointer;
+  transition: 0.2s ease;
 }
 
 button:hover {
@@ -104,6 +95,21 @@ button:hover {
   background: #333;
 }
 
+.watchedBtn:hover,
+.watchLaterBtn:hover {
+  transform: scale(1.05);
+}
+
+.watchedBtn {
+  background: #e50914;
+  color: white;
+}
+
+.watchLaterBtn {
+  background: #2a2a2a;
+  color: white;
+}
+
 .deleteBtn {
   background: #ab1919;
 }
@@ -112,10 +118,8 @@ button:hover {
   background: #671010;
 }
 
-
-
-
 /* Movie Cards */
+
 .movieGrid {
   display: flex;
   gap: 22px;
@@ -162,22 +166,37 @@ button:hover {
   overflow-y: auto;
 }
 
-
-
 /* General Button Row */
 
 .buttonRow {
   display: flex;
+  gap: 10px;
+  margin-top: 14px;
   justify-content: center;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  margin-top: 10px;
 }
 
 .buttonRow button {
-  padding: 8px 12px;
+  padding: 10px 14px;
   font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.buttonRow button:hover {
+  transform: scale(1.05);
+}
+
+.buttonRow button:first-child {
+  background: #e50914;
+  color: white;
+}
+
+.buttonRow button:last-child {
+  background: #2a2a2a;
+  color: white;
 }
 
 /* Saved Movies Buttons */
@@ -217,9 +236,8 @@ button:hover {
   font-size: 14px;
 }
 
-
-
 /* Phone responsiveness */
+
 @media (max-width: 600px) {
   .app {
     padding: 18px;
@@ -229,10 +247,7 @@ button:hover {
     font-size: 32px;
   }
 
-  .movieGrid {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 16px;
-  }
+
 
   .movieCard img {
     height: 220px;
@@ -252,7 +267,60 @@ button:hover {
 }
 
 
-h2 {
-  margin-top: 55px;
-  margin-bottom: 18px;
+
+
+.watchedBtn,
+.watchLaterBtn {
+  border: none;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+
+
+
+.movieTrack {
+  display: flex;
+  gap: 22px;
+  animation: scrollMovies 15s linear infinite;
+}
+
+.movieTrack:hover {
+  animation-play-state: paused;
+}
+
+@keyframes scrollMovies {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.searchResultsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 28px;
+  margin-top: 30px;
+  margin-bottom: 70px;
+}
+
+.quickRateBox {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quickRateBox input,
+.quickRateBox textarea {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  box-sizing: border-box;
 }

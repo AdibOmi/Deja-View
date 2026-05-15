@@ -1,0 +1,5 @@
+{
+  "livePreview.useIntegratedBrowser": false,
+  "livePreview.defaultPreview": "externalBrowser",
+  "liveServer.settings.CustomBrowser": "chrome"
+}

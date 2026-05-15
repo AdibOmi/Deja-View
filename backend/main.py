@@ -324,3 +324,86 @@ def update_watchlist_note(movie_id: int, update: MovieUpdate):
 
     finally:
         db.close()
+
+@app.get("/recommendations")
+def get_recommendations():
+    db = SessionLocal()
+
+    try:
+        liked_movies = (
+            db.query(Movie)
+            .filter(Movie.is_watched == True, Movie.my_rating >= 8)
+            .all()
+        )
+
+        candidate_movies = (
+            db.query(Movie)
+            .filter(Movie.my_rating == None)
+            .all()
+        )
+
+        recommendations = []
+
+        for candidate in candidate_movies:
+            score = 0
+            reasons = []
+
+            for liked in liked_movies:
+                # Genre match
+                if liked.genre and candidate.genre:
+                    liked_genres = [g.strip().lower() for g in liked.genre.split(",")]
+                    candidate_genres = [g.strip().lower() for g in candidate.genre.split(",")]
+
+                    common_genres = set(liked_genres) & set(candidate_genres)
+
+                    if common_genres:
+                        score += len(common_genres) * 2
+                        reasons.append("Similar genre")
+
+                # Director match
+                if liked.director and candidate.director:
+                    if liked.director.lower() == candidate.director.lower():
+                        score += 3
+                        reasons.append("Same director")
+
+                # Actor match
+                if liked.actors and candidate.actors:
+                    liked_actors = [a.strip().lower() for a in liked.actors.split(",")]
+                    candidate_actors = [a.strip().lower() for a in candidate.actors.split(",")]
+
+                    common_actors = set(liked_actors) & set(candidate_actors)
+
+                    if common_actors:
+                        score += len(common_actors) * 2
+                        reasons.append("Similar cast")
+
+            # IMDb bonus
+            try:
+                imdb = float(candidate.imdb_rating)
+                if imdb >= 8:
+                    score += 2
+                    reasons.append("High IMDb rating")
+                elif imdb >= 7.5:
+                    score += 1
+                    reasons.append("Good IMDb rating")
+            except:
+                pass
+
+            if score > 0:
+                recommendations.append({
+                    "id": candidate.id,
+                    "imdb_id": candidate.imdb_id,
+                    "title": candidate.title,
+                    "poster": candidate.poster,
+                    "imdb_rating": candidate.imdb_rating,
+                    "genre": candidate.genre,
+                    "score": score,
+                    "reason": ", ".join(set(reasons))
+                })
+
+        recommendations.sort(key=lambda x: x["score"], reverse=True)
+
+        return {"movies": recommendations[:10]}
+
+    finally:
+        db.close()
