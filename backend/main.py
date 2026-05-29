@@ -44,6 +44,71 @@ OMDB_API_KEY = os.getenv("OMDB_API_KEY")
 
 Base.metadata.create_all(bind=engine)
 
+
+def _score_candidate(candidate: dict, liked_movies: list) -> tuple[int, list[str]]:
+    score = 0
+    reasons: list[str] = []
+
+    candidate_genres = set(
+        g.strip().lower()
+        for g in (candidate.get("genre") or "").split(",")
+        if g.strip()
+    )
+    candidate_directors = set(
+        d.strip().lower()
+        for d in (candidate.get("director") or "").split(",")
+        if d.strip() and d.strip().lower() != "n/a"
+    )
+    candidate_actors = set(
+        a.strip().lower()
+        for a in (candidate.get("actors") or "").split(",")
+        if a.strip()
+    )
+
+    liked_genres = set()
+    liked_directors = set()
+    liked_actors = set()
+    for liked in liked_movies:
+        if liked.genre:
+            liked_genres.update(
+                g.strip().lower()
+                for g in liked.genre.split(",")
+                if g.strip()
+            )
+        if liked.director:
+            liked_directors.update(
+                d.strip().lower()
+                for d in liked.director.split(",")
+                if d.strip() and d.strip().lower() != "n/a"
+            )
+        if liked.actors:
+            liked_actors.update(
+                a.strip().lower()
+                for a in liked.actors.split(",")
+                if a.strip()
+            )
+
+    if candidate_genres & liked_genres:
+        score += 3
+        reasons.append("genre_match")
+    if candidate_directors & liked_directors:
+        score += 5
+        reasons.append("director_match")
+    if candidate_actors & liked_actors:
+        score += 1
+        reasons.append("actor_match")
+
+    try:
+        imdb_rating = float(candidate.get("imdb_rating", 0) or 0)
+        if imdb_rating >= 8:
+            score += 2
+            reasons.append("high_imdb_rating")
+    except (TypeError, ValueError):
+        pass
+
+    return score, reasons
+
+
 @app.get("/")
 #/ -> root URL
 def home():
@@ -82,7 +147,9 @@ def search_movie(query: str):
             "actors": details.get("Actors"),
             "plot": details.get("Plot"),
             "imdb_rating": details.get("imdbRating"),
-    })
+        })
+
+    return {"movies": movie_list}
 
 
 @app.post("/select")
@@ -350,77 +417,62 @@ def update_watchlist_note(movie_id: int, update: MovieUpdate):
 
     finally:
         db.close()
-
+        
 @app.get("/recommendations")
 def get_recommendations():
+    """
+    Returns up to 15 recommended movies.
+ 
+    Strategy:
+    1. Find all watched movies with my_rating >= 8.
+    2. Score every unrated movie already in the DB (watchlist or watched without rating).
+    3. Additionally, search OMDB for genres and directors found in liked movies to discover
+       new titles not yet in the user's DB.  These external candidates are scored the same way.
+    4. Deduplicate by imdb_id, sort by score, return top 15.
+    """
     db = SessionLocal()
-
     try:
         liked_movies = (
             db.query(Movie)
             .filter(Movie.is_watched == True, Movie.my_rating >= 8)
             .all()
         )
-
-        candidate_movies = (
+ 
+        if not liked_movies:
+            return {"movies": []}
+ 
+        # Collect already-known imdb_ids to avoid re-recommending them
+        known_ids = set(
+            row.imdb_id
+            for row in db.query(Movie.imdb_id).all()
+        )
+ 
+        # --- Pool 1: unrated movies already in the DB ---
+        db_candidates = (
             db.query(Movie)
             .filter(Movie.my_rating == None)
             .all()
         )
-
-        recommendations = []
-
-        for candidate in candidate_movies:
-            score = 0
-            reasons = []
-
-            for liked in liked_movies:
-                # Genre match
-                if liked.genre and candidate.genre:
-                    liked_genres = [g.strip().lower() for g in liked.genre.split(",")]
-                    candidate_genres = [g.strip().lower() for g in candidate.genre.split(",")]
-
-                    common_genres = set(liked_genres) & set(candidate_genres)
-
-                    if common_genres:
-                        score += len(common_genres) * 2
-                        reasons.append("Similar genre")
-
-                # Director match
-                if liked.director and candidate.director:
-                    if liked.director.lower() == candidate.director.lower():
-                        score += 3
-                        reasons.append("Same director")
-
-                # Actor match
-                if liked.actors and candidate.actors:
-                    liked_actors = [a.strip().lower() for a in liked.actors.split(",")]
-                    candidate_actors = [a.strip().lower() for a in candidate.actors.split(",")]
-
-                    common_actors = set(liked_actors) & set(candidate_actors)
-
-                    if common_actors:
-                        score += len(common_actors) * 2
-                        reasons.append("Similar cast")
-
-            # IMDb bonus
-            try:
-                imdb = float(candidate.imdb_rating)
-                if imdb >= 8:
-                    score += 2
-                    reasons.append("High IMDb rating")
-                elif imdb >= 7.5:
-                    score += 1
-                    reasons.append("Good IMDb rating")
-            except:
-                pass
-
+ 
+        recommendations: dict[str, dict] = {}  # keyed by imdb_id
+ 
+        for candidate in db_candidates:
+            score, reasons = _score_candidate(
+                {
+                    "genre": candidate.genre,
+                    "director": candidate.director,
+                    "actors": candidate.actors,
+                    "imdb_rating": candidate.imdb_rating,
+                },
+                liked_movies,
+            )
             if score > 0:
-                recommendations.append({
+                recommendations[candidate.imdb_id] = {
                     "id": candidate.id,
                     "imdb_id": candidate.imdb_id,
                     "title": candidate.title,
                     "poster": candidate.poster,
+                    "year": candidate.year,
                     "runtime": candidate.runtime,
                     "genre": candidate.genre,
                     "director": candidate.director,
@@ -429,11 +481,80 @@ def get_recommendations():
                     "imdb_rating": candidate.imdb_rating,
                     "score": score,
                     "reason": ", ".join(sorted(set(reasons))),
-                })
-
-        recommendations.sort(key=lambda x: x["score"], reverse=True)
-
-        return {"movies": recommendations[:10]}
-
+                }
+ 
+        # --- Pool 2: OMDB search for new titles ---
+        # Build search terms from liked movies: top genres + directors
+        search_terms = set()
+ 
+        for liked in liked_movies:
+            if liked.genre:
+                # Take only the first genre to keep searches focused
+                first_genre = liked.genre.split(",")[0].strip()
+                if first_genre:
+                    search_terms.add(first_genre)
+            if liked.director:
+                director = liked.director.split(",")[0].strip()
+                if director and director.lower() != "n/a":
+                    search_terms.add(director)
+ 
+        # Limit to at most 5 search terms to avoid too many API calls
+        for term in list(search_terms)[:5]:
+            try:
+                url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&s={requests.utils.quote(term)}&type=movie"
+                resp = requests.get(url, timeout=5)
+                data = resp.json()
+ 
+                if "Search" not in data:
+                    continue
+ 
+                for result in data["Search"][:5]:  # Check up to 5 results per term
+                    iid = result.get("imdbID")
+                    if not iid or iid in known_ids or iid in recommendations:
+                        continue
+ 
+                    # Fetch full details
+                    det_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&i={iid}&plot=short"
+                    det_resp = requests.get(det_url, timeout=5)
+                    details = det_resp.json()
+ 
+                    if details.get("Response") != "True":
+                        continue
+ 
+                    candidate_data = {
+                        "genre": details.get("Genre"),
+                        "director": details.get("Director"),
+                        "actors": details.get("Actors"),
+                        "imdb_rating": details.get("imdbRating"),
+                    }
+ 
+                    score, reasons = _score_candidate(candidate_data, liked_movies)
+ 
+                    if score > 0:
+                        recommendations[iid] = {
+                            "id": None,  # not in DB yet
+                            "imdb_id": iid,
+                            "title": details.get("Title"),
+                            "poster": details.get("Poster"),
+                            "year": details.get("Year"),
+                            "runtime": details.get("Runtime"),
+                            "genre": details.get("Genre"),
+                            "director": details.get("Director"),
+                            "actors": details.get("Actors"),
+                            "plot": details.get("Plot"),
+                            "imdb_rating": details.get("imdbRating"),
+                            "score": score,
+                            "reason": ", ".join(sorted(set(reasons))),
+                        }
+ 
+            except Exception:
+                # Don't crash if one OMDB call fails
+                continue
+ 
+        sorted_recs = sorted(recommendations.values(), key=lambda x: x["score"], reverse=True)
+ 
+        return {"movies": sorted_recs[:15]}
+ 
     finally:
         db.close()
+ 
