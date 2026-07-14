@@ -32,6 +32,81 @@
   letter-spacing: 0.02em;
 }
 
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.userChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.userChip:hover {
+  color: var(--text);
+}
+
+/* =========================
+   Shared With You inbox
+========================= */
+.shareInboxList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.shareInboxCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+}
+
+.shareInboxCard img {
+  width: 56px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.shareInboxInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.shareInboxInfo h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.shareInboxInfo .imdb-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shareInboxCard .buttonRow {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+@media (max-width: 700px) {
+  .shareInboxCard {
+    flex-wrap: wrap;
+  }
+}
+
 /* =========================
    Sections
 ========================= */
@@ -102,6 +177,14 @@
 .seeAllBtn:hover {
   border-color: var(--accent);
   color: var(--text);
+  transform: none;
+}
+
+.seeAllBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text-dim);
   transform: none;
 }
 

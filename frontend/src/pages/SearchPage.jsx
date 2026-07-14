@@ -3,8 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import "./SearchPage.css";
 
 import MovieCard from "../components/MovieCard";
-
-const API = "http://127.0.0.1:8000";
+import { apiFetch } from "../api";
 
 function SearchPage() {
   const navigate = useNavigate();
@@ -27,12 +26,10 @@ function SearchPage() {
   const [existingStatus, setExistingStatus] = useState({});
 
   async function loadExistingStatus() {
-    const [watchedRes, watchlistRes] = await Promise.all([
-      fetch(`${API}/movies`),
-      fetch(`${API}/watchlist`),
+    const [watchedData, watchlistData] = await Promise.all([
+      apiFetch("/movies"),
+      apiFetch("/watchlist"),
     ]);
-    const watchedData = await watchedRes.json();
-    const watchlistData = await watchlistRes.json();
 
     const statusMap = {};
     for (const m of watchedData.movies || []) statusMap[m.imdb_id] = "watched";
@@ -43,20 +40,16 @@ function SearchPage() {
   async function searchMovies(searchText = query) {
     if (!searchText.trim()) return;
 
-    const res = await fetch(
-      `${API}/search?query=${encodeURIComponent(searchText.trim())}`
+    const data = await apiFetch(
+      `/search?query=${encodeURIComponent(searchText.trim())}`
     );
 
-   const data = await res.json();
+    if (!data || !Array.isArray(data.movies)) {
+      setSearchResults([]);
+      return;
+    }
 
-console.log("Search response:", data);
-
-if (!data || !Array.isArray(data.movies)) {
-  setSearchResults([]);
-  return;
-}
-
-setSearchResults(data.movies);
+    setSearchResults(data.movies);
   }
 
   useEffect(() => {
@@ -67,26 +60,15 @@ setSearchResults(data.movies);
   }, [initialQuery]);
 
   async function saveMovie(movie) {
-    const saveRes = await fetch(`${API}/select`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(movie),
-    });
-
-    const saveData = await saveRes.json();
+    const saveData = await apiFetch("/select", { method: "POST", body: movie });
     const movieId = saveData.movie_id;
 
-    await fetch(`${API}/movies/${movieId}`, {
+    await apiFetch(`/movies/${movieId}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+      body: {
         my_rating: newRating === "" ? null : parseFloat(newRating),
         my_comment: newComment,
-      }),
+      },
     });
 
     setRatingMovieId(null);
@@ -98,30 +80,17 @@ setSearchResults(data.movies);
   }
 
   async function saveWatchLater(movie) {
-    await fetch(`${API}/watchlist`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(movie),
-    });
+    await apiFetch("/watchlist", { method: "POST", body: movie });
 
-    const saveRes = await fetch(`${API}/watchlist`);
-    const data = await saveRes.json();
-
+    const data = await apiFetch("/watchlist");
     const savedMovie = data.movies.find(
       (m) => m.imdb_id === movie.imdb_id
     );
 
     if (savedMovie) {
-      await fetch(`${API}/watchlist/${savedMovie.id}`, {
+      await apiFetch(`/watchlist/${savedMovie.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          watch_comment: newWatchComment,
-        }),
+        body: { watch_comment: newWatchComment },
       });
     }
 

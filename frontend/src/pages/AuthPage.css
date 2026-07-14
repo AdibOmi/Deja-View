@@ -1,0 +1,137 @@
+.authScreen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.authCard {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 36px 32px;
+}
+
+.authTitle {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.authSubtitle {
+  color: var(--text-dim);
+  font-size: 14px;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.authForm label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+
+.authForm input {
+  width: 100%;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 10px 12px;
+  margin-top: 6px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.authForm input:focus {
+  border-color: var(--accent);
+}
+
+.authError {
+  background: rgba(232, 41, 46, 0.12);
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.authSubmitBtn {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  height: 42px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.authSubmitBtn:hover {
+  background: var(--accent-dim);
+  transform: none;
+}
+
+.authSubmitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.authSwitch {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 22px;
+}
+
+.authSwitch a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.friendCodeBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.friendCodeLabel {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.friendCodeValue {
+  display: block;
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--gold);
+}
+
+.friendCodeBox button {
+  width: auto;
+  flex-shrink: 0;
+}

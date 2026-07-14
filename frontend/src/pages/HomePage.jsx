@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 import MovieCard from "../components/MovieCard";
+import Avatar from "../components/Avatar";
+import { apiFetch } from "../api";
+import { useAuth } from "../context/AuthContext";
 
-const API = "http://127.0.0.1:8000";
-const REC_PAGE_SIZE = 15;
+const REC_PAGE_SIZE = 30;
 
 function ratingValue(movie) {
   if (movie.my_rating !== null && movie.my_rating !== undefined) return movie.my_rating;
@@ -54,11 +56,13 @@ function TypeRow({ label, movies, renderCard }) {
 
 function HomePage() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const [savedMovies, setSavedMovies] = useState([]);
   const [watchlistMovies, setWatchlistMovies] = useState([]);
   const [recommendedMovies, setRecommendedMovies] = useState([]);
-  const [recLimit, setRecLimit] = useState(REC_PAGE_SIZE);
+  const [recsPersonalized, setRecsPersonalized] = useState(true);
+  const [loadingMoreRecs, setLoadingMoreRecs] = useState(false);
 
   const [editingMovieId, setEditingMovieId] = useState(null);
   const [editRating, setEditRating] = useState("");
@@ -72,60 +76,109 @@ function HomePage() {
   // See All modal state
   const [seeAllSection, setSeeAllSection] = useState(null); // "watched" | "watchlist" | "recommendations"
 
+  const recRowRef = useRef(null);
+  const recPausedRef = useRef(false);
+
+  // Friends + sharing
+  const [friends, setFriends] = useState([]);
+  const [inboxShares, setInboxShares] = useState([]);
+  const [sharingMovieId, setSharingMovieId] = useState(null);
+  const [shareFriendId, setShareFriendId] = useState("");
+  const [shareComment, setShareComment] = useState("");
+
   async function loadSavedMovies() {
-    const res = await fetch(`${API}/movies`);
-    const data = await res.json();
+    const data = await apiFetch("/movies");
     setSavedMovies(data.movies || []);
   }
 
   async function loadWatchlistMovies() {
-    const response = await fetch(`${API}/watchlist`);
-    const data = await response.json();
+    const data = await apiFetch("/watchlist");
     setWatchlistMovies(data.movies || []);
   }
 
-  async function loadRecommendations(limit = recLimit) {
-    const res = await fetch(`${API}/recommendations?limit=${limit}`);
-    const data = await res.json();
+  async function loadRecommendations() {
+    const data = await apiFetch(`/recommendations?limit=${REC_PAGE_SIZE}`);
     setRecommendedMovies(data.movies || []);
+    setRecsPersonalized(data.personalized ?? true);
   }
 
   async function getMoreRecommendations() {
-    const newLimit = recLimit + REC_PAGE_SIZE;
-    setRecLimit(newLimit);
-    await loadRecommendations(newLimit);
+    setLoadingMoreRecs(true);
+    try {
+      const exclude = recommendedMovies.map((m) => m.imdb_id).join(",");
+      const data = await apiFetch(
+        `/recommendations?limit=${REC_PAGE_SIZE}&exclude=${encodeURIComponent(exclude)}`
+      );
+      const newMovies = data.movies || [];
+      setRecommendedMovies((prev) => [...prev, ...newMovies]);
+      if (newMovies.length === 0) {
+        alert("No more new recommendations to show right now.");
+      }
+    } finally {
+      setLoadingMoreRecs(false);
+    }
+  }
+
+  async function loadFriends() {
+    const data = await apiFetch("/friends");
+    setFriends(data.friends || []);
+  }
+
+  async function loadInbox() {
+    const data = await apiFetch("/shares/inbox");
+    setInboxShares(data.shares || []);
   }
 
   useEffect(() => {
     loadSavedMovies();
     loadWatchlistMovies();
     loadRecommendations();
+    loadFriends();
+    loadInbox();
   }, []);
 
+  useEffect(() => {
+    const row = recRowRef.current;
+    if (!row) return;
+
+    const speed = 0.5; // px per frame
+    let frameId;
+
+    function step() {
+      if (!recPausedRef.current && row.scrollWidth > row.clientWidth) {
+        if (row.scrollLeft + row.clientWidth >= row.scrollWidth - 1) {
+          row.scrollLeft = 0;
+        } else {
+          row.scrollLeft += speed;
+        }
+      }
+      frameId = requestAnimationFrame(step);
+    }
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [recommendedMovies]);
+
   async function saveMovie(movie) {
-    await fetch(`${API}/select`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(movie),
-    });
+    await apiFetch("/select", { method: "POST", body: movie });
     loadSavedMovies();
     loadRecommendations();
   }
 
   async function saveWatchLater(movie) {
-    const res = await fetch(`${API}/watchlist`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(movie),
-    });
-    if (!res.ok) { alert("Failed to add to watch later"); return; }
+    try {
+      await apiFetch("/watchlist", { method: "POST", body: movie });
+    } catch {
+      alert("Failed to add to watch later");
+      return;
+    }
     await loadWatchlistMovies();
     loadRecommendations();
   }
 
   async function deleteMovie(id) {
     if (!window.confirm("Are you sure you want to delete this movie?")) return;
-    await fetch(`${API}/movies/${id}`, { method: "DELETE" });
+    await apiFetch(`/movies/${id}`, { method: "DELETE" });
     loadSavedMovies();
   }
 
@@ -136,12 +189,7 @@ function HomePage() {
   }
 
   async function updateMovie(movieId, payload) {
-    const res = await fetch(`${API}/movies/${movieId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return res.json();
+    return apiFetch(`/movies/${movieId}`, { method: "PATCH", body: payload });
   }
 
   async function saveEdit(movieId) {
@@ -167,11 +215,7 @@ function HomePage() {
   }
 
   async function saveWatchEdit(id) {
-    await fetch(`${API}/watchlist/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ watch_comment: editWatchComment }),
-    });
+    await apiFetch(`/watchlist/${id}`, { method: "PATCH", body: { watch_comment: editWatchComment } });
     setWatchlistMovies((prev) =>
       prev.map((movie) =>
         movie.id === id ? { ...movie, watch_comment: editWatchComment } : movie
@@ -181,23 +225,98 @@ function HomePage() {
   }
 
   async function moveToWatched(movie) {
-    await fetch(`${API}/watchlist/${movie.id}/watched`, { method: "PATCH" });
+    await apiFetch(`/watchlist/${movie.id}/watched`, { method: "PATCH" });
     loadSavedMovies();
     loadWatchlistMovies();
   }
 
   async function deleteWatchMovie(id) {
     if (!window.confirm("Remove from Watch Later?")) return;
-    await fetch(`${API}/watchlist/${id}`, { method: "DELETE" });
+    await apiFetch(`/watchlist/${id}`, { method: "DELETE" });
     setWatchlistMovies((prev) => prev.filter((m) => m.id !== id));
+  }
+
+  function startShare(movie) {
+    setSharingMovieId(movie.id);
+    setShareFriendId("");
+    setShareComment("");
+  }
+
+  async function shareMovie(movie) {
+    if (!shareFriendId) return;
+    try {
+      await apiFetch("/shares", {
+        method: "POST",
+        body: {
+          movie_id: movie.id,
+          friend_user_id: parseInt(shareFriendId, 10),
+          comment: shareComment,
+        },
+      });
+      setSharingMovieId(null);
+    } catch (err) {
+      alert(err.message || "Failed to share movie");
+    }
+  }
+
+  async function addSharedMovie(share) {
+    try {
+      await apiFetch(`/shares/${share.id}/add`, { method: "POST" });
+    } catch (err) {
+      alert(err.message || "Failed to add this movie to your Watch Later list");
+      return;
+    }
+    setInboxShares((prev) => prev.filter((s) => s.id !== share.id));
+    loadWatchlistMovies();
+    loadRecommendations();
+  }
+
+  async function dismissSharedMovie(share) {
+    await apiFetch(`/shares/${share.id}/dismiss`, { method: "POST" });
+    setInboxShares((prev) => prev.filter((s) => s.id !== share.id));
   }
 
   // ---------- Card renderers ----------
 
+  function renderShareBox(movie) {
+    if (sharingMovieId !== movie.id) return null;
+    return (
+      <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
+        {friends.length === 0 ? (
+          <p className="emptyState">
+            Add a friend first — <a href="/friends">go to Friends</a>.
+          </p>
+        ) : (
+          <>
+            <select value={shareFriendId} onChange={(e) => setShareFriendId(e.target.value)}>
+              <option value="">Choose a friend…</option>
+              {friends.map((f) => (
+                <option key={f.user_id} value={f.user_id}>
+                  {f.display_name || f.username}
+                </option>
+              ))}
+            </select>
+            <textarea
+              value={shareComment}
+              onChange={(e) => setShareComment(e.target.value)}
+              placeholder="Add a comment…"
+            />
+            <div className="buttonRow">
+              <button className="saveBtn" disabled={!shareFriendId} onClick={() => shareMovie(movie)}>
+                Share
+              </button>
+              <button className="cancelBtn" onClick={() => setSharingMovieId(null)}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   function renderWatchedCard(movie) {
     return (
       <MovieCard key={movie.id} movie={movie}>
-        <p className="imdb-line">⭐ {movie.imdb_rating || "N/A"}</p>
+        <p className="imdb-line">IMDb: {movie.imdb_rating || "N/A"}</p>
         {editingMovieId === movie.id ? (
           <div onClick={(e) => e.stopPropagation()}>
             <input
@@ -231,12 +350,16 @@ function HomePage() {
               <button className="editBtn" onClick={(e) => { e.stopPropagation(); startEdit(movie); }}>
                 Rate
               </button>
+              <button className="shareBtn" onClick={(e) => { e.stopPropagation(); startShare(movie); }}>
+                Share
+              </button>
               <button className="deleteBtn" onClick={(e) => { e.stopPropagation(); deleteMovie(movie.id); }}>
                 ✕
               </button>
             </div>
           </>
         )}
+        {renderShareBox(movie)}
       </MovieCard>
     );
   }
@@ -244,7 +367,7 @@ function HomePage() {
   function renderWatchlistCard(movie) {
     return (
       <MovieCard key={movie.id} movie={movie}>
-        <p className="imdb-line">⭐ {movie.imdb_rating || "N/A"}</p>
+        <p className="imdb-line">IMDb: {movie.imdb_rating || "N/A"}</p>
         {editingWatchId === movie.id ? (
           <div onClick={(e) => e.stopPropagation()}>
             <textarea
@@ -263,11 +386,26 @@ function HomePage() {
               <p className="movie-thoughts">"{movie.watch_comment}"</p>
             )}
             <div className="watchButtons">
-              <button className="editBtn" onClick={(e) => { e.stopPropagation(); startWatchEdit(movie); }}>
-                Note
+              <button
+                className="editBtn iconBtn"
+                title="Add a note"
+                onClick={(e) => { e.stopPropagation(); startWatchEdit(movie); }}
+              >
+                ✎
               </button>
-              <button className="watchBtn" onClick={(e) => { e.stopPropagation(); moveToWatched(movie); }}>
-                Watched ✓
+              <button
+                className="shareBtn iconBtn"
+                title="Share with a friend"
+                onClick={(e) => { e.stopPropagation(); startShare(movie); }}
+              >
+                ↗
+              </button>
+              <button
+                className="watchBtn iconBtn"
+                title="Mark as watched"
+                onClick={(e) => { e.stopPropagation(); moveToWatched(movie); }}
+              >
+                ✓
               </button>
               <button className="deleteBtn" onClick={(e) => { e.stopPropagation(); deleteWatchMovie(movie.id); }}>
                 ✕
@@ -275,6 +413,7 @@ function HomePage() {
             </div>
           </>
         )}
+        {renderShareBox(movie)}
       </MovieCard>
     );
   }
@@ -282,8 +421,7 @@ function HomePage() {
   function renderRecommendationCard(movie) {
     return (
       <MovieCard key={movie.imdb_id} movie={movie}>
-        <p className="imdb-line">⭐ {movie.imdb_rating || "N/A"}</p>
-        {movie.reason && <p className="reason-tag">{movie.reason}</p>}
+        <p className="imdb-line">IMDb: {movie.imdb_rating || "N/A"}</p>
         <div className="buttonRow">
           <button className="watchedBtn" onClick={(e) => { e.stopPropagation(); saveMovie(movie); }}>
             Watched
@@ -304,7 +442,7 @@ function HomePage() {
       {/* Header */}
       <header className="appHeader">
         <div className="headerLeft">
-          <h1 className="appTitle">Déjà View</h1>
+          <h1 className="appTitle">Deja View</h1>
           <p className="subtitle">Never forget why you loved it.</p>
         </div>
         <div className="searchBox">
@@ -327,14 +465,58 @@ function HomePage() {
             Search
           </button>
         </div>
+        <div className="headerRight">
+          <div className="userChip" onClick={() => navigate("/profile")}>
+            <Avatar name={user?.display_name || user?.username || "?"} size={32} />
+            <span>{user?.display_name || user?.username}</span>
+          </div>
+          <button className="seeAllBtn" onClick={() => navigate("/friends")}>Friends</button>
+          <button className="seeAllBtn" onClick={() => { if (window.confirm("Are you sure you want to log out?")) logout(); }}>
+            Log out
+          </button>
+        </div>
       </header>
+
+      {/* ===== Shared With You ===== */}
+      {inboxShares.length > 0 && (
+        <section className="section">
+          <div className="sectionHeader">
+            <h2>Shared With You</h2>
+          </div>
+          <div className="shareInboxList">
+            {inboxShares.map((share) => (
+              <div className="shareInboxCard" key={share.id}>
+                <img src={share.poster} alt={share.title} />
+                <div className="shareInboxInfo">
+                  <h3>{share.title}</h3>
+                  <div className="imdb-line">
+                    <Avatar name={share.sender_display_name || share.sender_username} size={20} />
+                    {" "}from {share.sender_display_name || share.sender_username}
+                  </div>
+                  {share.comment && <p className="movie-thoughts">"{share.comment}"</p>}
+                </div>
+                <div className="buttonRow">
+                  <button className="watchLaterBtn" onClick={() => addSharedMovie(share)}>
+                    Add to Watch Later
+                  </button>
+                  <button className="cancelBtn" onClick={() => dismissSharedMovie(share)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ===== Recommendations ===== */}
       <section className="section">
         <div className="sectionHeader">
           <h2>Recommended For You</h2>
           <div className="sectionHeaderRight">
-            <span className="sectionHint">Based on movies you rated 8+</span>
+            <span className="sectionHint">
+              {recsPersonalized ? "Based on movies you rated 8+" : "Popular picks to get you started"}
+            </span>
             {recommendedMovies.length > 0 && (
               <button className="seeAllBtn" onClick={() => setSeeAllSection("recommendations")}>
                 See All ({recommendedMovies.length})
@@ -346,7 +528,12 @@ function HomePage() {
         {recommendedMovies.length === 0 ? (
           <p className="emptyState">Rate a few movies 8 or above to get personalised recommendations.</p>
         ) : (
-          <div className="movieScrollRow">
+          <div
+            className="movieScrollRow"
+            ref={recRowRef}
+            onMouseEnter={() => { recPausedRef.current = true; }}
+            onMouseLeave={() => { recPausedRef.current = false; }}
+          >
             {recommendedMovies.map((movie) => renderRecommendationCard(movie))}
           </div>
         )}
@@ -421,7 +608,9 @@ function HomePage() {
           renderCard={renderRecommendationCard}
           footer={
             <div className="getMoreRow">
-              <button className="seeAllBtn" onClick={getMoreRecommendations}>Get More</button>
+              <button className="seeAllBtn" onClick={getMoreRecommendations} disabled={loadingMoreRecs}>
+                {loadingMoreRecs ? "Finding more…" : "Get More"}
+              </button>
             </div>
           }
         />

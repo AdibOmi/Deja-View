@@ -1,10 +1,13 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, Float
+from sqlalchemy import Column, Integer, String, Text, Boolean, Float, ForeignKey, UniqueConstraint
 from app.db.db import Base
 
 class Movie(Base):
     __tablename__ = "movies"
+    __table_args__ = (UniqueConstraint("user_id", "imdb_id", name="uq_movies_user_imdb"),)
+
     id = Column(Integer, primary_key=True, index=True)
-    imdb_id = Column(String, unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    imdb_id = Column(String, index=True, nullable=False)
     title=Column(String, nullable=False)
     poster=Column(String, nullable=True)
 
