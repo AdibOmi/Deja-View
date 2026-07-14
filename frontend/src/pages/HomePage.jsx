@@ -366,7 +366,14 @@ function HomePage() {
 
   function renderWatchlistCard(movie) {
     return (
-      <MovieCard key={movie.id} movie={movie}>
+      <MovieCard
+        key={movie.id}
+        movie={movie}
+        cornerAction={{
+          title: "Remove from Watch Later",
+          onClick: () => deleteWatchMovie(movie.id),
+        }}
+      >
         <p className="imdb-line">IMDb: {movie.imdb_rating || "N/A"}</p>
         {editingWatchId === movie.id ? (
           <div onClick={(e) => e.stopPropagation()}>
@@ -387,28 +394,25 @@ function HomePage() {
             )}
             <div className="watchButtons">
               <button
-                className="editBtn iconBtn"
+                className="editBtn"
                 title="Add a note"
                 onClick={(e) => { e.stopPropagation(); startWatchEdit(movie); }}
               >
-                ✎
+                Note
               </button>
               <button
-                className="shareBtn iconBtn"
+                className="shareBtn"
                 title="Share with a friend"
                 onClick={(e) => { e.stopPropagation(); startShare(movie); }}
               >
-                ↗
+                Share
               </button>
               <button
-                className="watchBtn iconBtn"
+                className="watchBtn"
                 title="Mark as watched"
                 onClick={(e) => { e.stopPropagation(); moveToWatched(movie); }}
               >
-                ✓
-              </button>
-              <button className="deleteBtn" onClick={(e) => { e.stopPropagation(); deleteWatchMovie(movie.id); }}>
-                ✕
+                Watched
               </button>
             </div>
           </>

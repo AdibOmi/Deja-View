@@ -29,7 +29,7 @@ function LoginPage() {
   return (
     <div className="authScreen">
       <div className="authCard">
-        <h1 className="authTitle">Déjà View</h1>
+        <h1 className="authTitle">Deja View</h1>
         <p className="authSubtitle">Log in to see your movies.</p>
 
         {error && <div className="authError">{error}</div>}

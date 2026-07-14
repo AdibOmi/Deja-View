@@ -161,7 +161,7 @@ button:focus-visible {
 .watchButtons {
   display: flex;
   align-items: stretch;
-  gap: 6px;
+  gap: 4px;
   margin-top: 10px;
 }
 
@@ -176,6 +176,15 @@ button:focus-visible {
   align-items: center;
   justify-content: center;
   flex: 1;
+  min-width: 0;
+}
+
+.watchButtons button {
+  padding: 0 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .watchedBtn { background: var(--accent); color: white; }
@@ -196,7 +205,7 @@ button:focus-visible {
 .cancelBtn { background: var(--surface3); color: var(--text-dim); }
 .cancelBtn:hover { background: #333; transform: none; }
 
-.watchBtn { background: var(--surface3); color: var(--text); }
+.watchBtn { background: var(--surface3); color: #c9c9c9; }
 .watchBtn:hover { background: #1a7a4a; color: white; transform: none; }
 
 .buttonRow .deleteBtn,
@@ -209,14 +218,6 @@ button:focus-visible {
   padding: 0;
 }
 .deleteBtn:hover { background: var(--accent); color: white; transform: none; }
-
-.watchButtons .iconBtn {
-  flex: none;
-  width: 34px;
-  min-width: 34px;
-  padding: 0;
-  font-size: 15px;
-}
 
 /* =========================
    Movie Cards (shared everywhere MovieCard renders)
@@ -246,6 +247,30 @@ button:focus-visible {
   object-fit: cover;
   border-radius: 8px;
   display: block;
+}
+
+.posterWrap {
+  position: relative;
+}
+
+.cornerDeleteBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  font-size: 12px;
+  line-height: 1;
+  backdrop-filter: blur(2px);
+}
+
+.cornerDeleteBtn:hover {
+  background: var(--accent);
+  transform: scale(1.08);
 }
 
 .movieCard h3 {
@@ -385,9 +410,6 @@ button:focus-visible {
 @media (max-width: 700px) {
   .modalContent { flex-direction: column; align-items: center; }
   .modalPoster { width: 160px; }
-
-  .watchButtons { flex-wrap: wrap; }
-  .watchButtons .deleteBtn { width: 100%; }
 
   .searchBox { width: 100%; max-width: none; }
 }

@@ -4,7 +4,34 @@
 
 A movie-tracking app that goes beyond a plain watchlist: rate and review what you've watched, get recommendations that actually understand your taste, and share movies with friends along with why you think they'll like them.
 
-<!-- Screenshots coming soon -->
+## Screenshots
+
+<table>
+<tr>
+<td align="center"><img src="screenshots/LogIn.png" width="420"/><br/><sub>Log in</sub></td>
+<td align="center"><img src="screenshots/SignUp.png" width="420"/><br/><sub>Sign up</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/HomePage.png" width="420"/><br/><sub>Home — recommendations, Watched, Watch Later</sub></td>
+<td align="center"><img src="screenshots/Description.png" width="420"/><br/><sub>Movie detail view</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Watched.png" width="420"/><br/><sub>Watched list</sub></td>
+<td align="center"><img src="screenshots/WatchLater.png" width="420"/><br/><sub>Watch Later list</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Friends.png" width="420"/><br/><sub>Friends</sub></td>
+<td align="center"><img src="screenshots/AddFriend.png" width="420"/><br/><sub>Adding a friend</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Profile.png" width="420"/><br/><sub>Profile</sub></td>
+<td></td>
+</tr>
+</table>
+
+> The "Recommended For You" row is generated live from your own ratings, so it won't look like the screenshot above — it's different for every account and changes as you rate more movies.
+>
+> No search results screenshot is included right now since TMDB is temporarily down.
 
 ## Features
 

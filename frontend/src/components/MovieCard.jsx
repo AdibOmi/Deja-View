@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function MovieCard({ movie, children }) {
+function MovieCard({ movie, children, cornerAction }) {
   const [showDetails, setShowDetails] = useState(false);
 
   return (
@@ -9,10 +9,22 @@ function MovieCard({ movie, children }) {
         className="movieCard"
         onClick={() => setShowDetails(true)}
       >
-        <img
-          src={movie.poster || movie.Poster}
-          alt={movie.title || movie.Title}
-        />
+        <div className="posterWrap">
+          <img
+            src={movie.poster || movie.Poster}
+            alt={movie.title || movie.Title}
+          />
+
+          {cornerAction && (
+            <button
+              className="cornerDeleteBtn"
+              title={cornerAction.title}
+              onClick={(e) => { e.stopPropagation(); cornerAction.onClick(e); }}
+            >
+              {cornerAction.icon || "✕"}
+            </button>
+          )}
+        </div>
 
         <h3>{movie.title || movie.Title}</h3>
 

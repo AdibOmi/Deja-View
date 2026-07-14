@@ -36,7 +36,7 @@ function SignupPage() {
   return (
     <div className="authScreen">
       <div className="authCard">
-        <h1 className="authTitle">Déjà View</h1>
+        <h1 className="authTitle">Deja View</h1>
         <p className="authSubtitle">Create an account to start tracking movies.</p>
 
         {error && <div className="authError">{error}</div>}
