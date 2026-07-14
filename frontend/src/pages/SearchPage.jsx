@@ -22,6 +22,24 @@ function SearchPage() {
   const [newRating, setNewRating] = useState("");
   const [newComment, setNewComment] = useState("");
 
+  // Maps imdb_id -> "watched" | "watchlist", so search results can show
+  // their existing status without the user having to click first.
+  const [existingStatus, setExistingStatus] = useState({});
+
+  async function loadExistingStatus() {
+    const [watchedRes, watchlistRes] = await Promise.all([
+      fetch(`${API}/movies`),
+      fetch(`${API}/watchlist`),
+    ]);
+    const watchedData = await watchedRes.json();
+    const watchlistData = await watchlistRes.json();
+
+    const statusMap = {};
+    for (const m of watchedData.movies || []) statusMap[m.imdb_id] = "watched";
+    for (const m of watchlistData.movies || []) statusMap[m.imdb_id] = "watchlist";
+    setExistingStatus(statusMap);
+  }
+
   async function searchMovies(searchText = query) {
     if (!searchText.trim()) return;
 
@@ -42,6 +60,7 @@ setSearchResults(data.movies);
   }
 
   useEffect(() => {
+    loadExistingStatus();
     if (initialQuery.trim()) {
       searchMovies(initialQuery);
     }
@@ -73,6 +92,7 @@ setSearchResults(data.movies);
     setRatingMovieId(null);
     setNewRating("");
     setNewComment("");
+    loadExistingStatus();
 
     alert("Movie saved with rating!");
   }
@@ -107,6 +127,7 @@ setSearchResults(data.movies);
 
     setWatchLaterMovieId(null);
     setNewWatchComment("");
+    loadExistingStatus();
 
     alert("Added to watch later!");
   }
@@ -131,96 +152,114 @@ setSearchResults(data.movies);
           placeholder="Search for a movie..."
         />
 
-        <button onClick={() => searchMovies(query)}>Search</button>
+        <button id="searchBtn" onClick={() => searchMovies(query)}>Search</button>
       </div>
 
       <div className="searchResultsGrid">
-        {searchResults.map((movie) => (
-          <MovieCard key={movie.imdb_id} movie={movie}>
-            <div className="buttonRow">
-              <button
-                className="watchedBtn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setRatingMovieId(movie.imdb_id);
-                  setNewRating("");
-                  setNewComment("");
-                }}
-              >
-                Watched
-              </button>
+        {searchResults.map((movie) => {
+          const status = existingStatus[movie.imdb_id];
 
-              <button
-                className="watchLaterBtn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setWatchLaterMovieId(movie.imdb_id);
-                  setNewWatchComment("");
-                }}
-              >
-                Watch Later
-              </button>
-            </div>
+          return (
+            <MovieCard key={movie.imdb_id} movie={movie}>
+              {status === "watched" && (
+                <p className="statusPill statusPill--watched">Already Watched</p>
+              )}
 
-            {ratingMovieId === movie.imdb_id && (
-              <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
-                <input
-                  value={newRating}
-                  onChange={(e) => setNewRating(e.target.value)}
-                  placeholder="My rating"
-                />
+              {status !== "watched" && (
+                <>
+                  {status === "watchlist" && (
+                    <p className="statusPill statusPill--watchlist">In Watch Later</p>
+                  )}
 
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="My thoughts"
-                />
+                  <div className="buttonRow">
+                    <button
+                      className="watchedBtn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRatingMovieId(movie.imdb_id);
+                        setNewRating("");
+                        setNewComment("");
+                      }}
+                    >
+                      Watched
+                    </button>
 
-                <div className="buttonRow">
-                  <button
-                    className="watchedBtn"
-                    onClick={() => saveMovie(movie)}
-                  >
-                    Save
-                  </button>
+                    {status !== "watchlist" && (
+                      <button
+                        className="watchLaterBtn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWatchLaterMovieId(movie.imdb_id);
+                          setNewWatchComment("");
+                        }}
+                      >
+                        Watch Later
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
 
-                  <button
-                    className="deleteBtn"
-                    onClick={() => setRatingMovieId(null)}
-                  >
-                    Cancel
-                  </button>
+              {ratingMovieId === movie.imdb_id && (
+                <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    value={newRating}
+                    onChange={(e) => setNewRating(e.target.value)}
+                    placeholder="My rating"
+                  />
+
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="My thoughts"
+                  />
+
+                  <div className="buttonRow">
+                    <button
+                      className="watchedBtn"
+                      onClick={() => saveMovie(movie)}
+                    >
+                      Save
+                    </button>
+
+                    <button
+                      className="cancelBtn"
+                      onClick={() => setRatingMovieId(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {watchLaterMovieId === movie.imdb_id && (
-              <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
-                <textarea
-                  value={newWatchComment}
-                  onChange={(e) => setNewWatchComment(e.target.value)}
-                  placeholder="Why do you wanna watch this?"
-                />
+              {watchLaterMovieId === movie.imdb_id && (
+                <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
+                  <textarea
+                    value={newWatchComment}
+                    onChange={(e) => setNewWatchComment(e.target.value)}
+                    placeholder="Why do you wanna watch this?"
+                  />
 
-                <div className="buttonRow">
-                  <button
-                    className="watchLaterBtn"
-                    onClick={() => saveWatchLater(movie)}
-                  >
-                    Save
-                  </button>
+                  <div className="buttonRow">
+                    <button
+                      className="watchLaterBtn"
+                      onClick={() => saveWatchLater(movie)}
+                    >
+                      Save
+                    </button>
 
-                  <button
-                    className="deleteBtn"
-                    onClick={() => setWatchLaterMovieId(null)}
-                  >
-                    Cancel
-                  </button>
+                    <button
+                      className="cancelBtn"
+                      onClick={() => setWatchLaterMovieId(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </MovieCard>
-        ))}
+              )}
+            </MovieCard>
+          );
+        })}
       </div>
     </div>
   );

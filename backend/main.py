@@ -147,6 +147,7 @@ def search_movie(query: str):
             "actors": details.get("Actors"),
             "plot": details.get("Plot"),
             "imdb_rating": details.get("imdbRating"),
+            "type": details.get("Type"),
         })
 
     return {"movies": movie_list}
@@ -160,6 +161,10 @@ def select_movie(movie_data: dict):
 
         existing = db.query(Movie).filter(Movie.imdb_id == imdb_id).first()
         if existing:
+            if not existing.is_watched:
+                existing.is_watched = True
+                db.commit()
+                return {"message": "moved_to_watched", "movie_id": existing.id}
             return {"message": "already_saved", "movie_id": existing.id}
 
         url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&i={imdb_id}&plot=full"
@@ -180,6 +185,7 @@ def select_movie(movie_data: dict):
             actors=data.get("Actors"),
             plot=data.get("Plot"),
             imdb_rating=data.get("imdbRating"),
+            media_type=movie_data.get("type") or data.get("Type"),
             is_watched=True,
         )
 
@@ -214,6 +220,7 @@ def get_movies():
                     "imdb_rating": m.imdb_rating,
                     "my_rating": m.my_rating,
                     "my_comment": m.my_comment,
+                    "type": m.media_type,
                 }
                         for m in movie_list
             ]
@@ -327,6 +334,7 @@ def add_to_watchlist(movie_data: dict):
             actors=data.get("Actors"),
             plot=data.get("Plot"),
             imdb_rating=data.get("imdbRating"),
+            media_type=movie_data.get("type") or data.get("Type"),
             is_watched=False,
             #  my_rating=m.my_rating,
             #  my_comment=m.my_comment,
@@ -370,6 +378,7 @@ def get_watchlist():
                     "imdb_rating": m.imdb_rating,
                     "my_comment": m.my_comment,
                     "watch_comment": m.watch_comment,
+                    "type": m.media_type,
                 }
                 for m in movie_list
             ]
@@ -419,16 +428,16 @@ def update_watchlist_note(movie_id: int, update: MovieUpdate):
         db.close()
         
 @app.get("/recommendations")
-def get_recommendations():
+def get_recommendations(limit: int = 15):
     """
-    Returns up to 15 recommended movies.
- 
+    Returns up to `limit` recommended movies that are NOT already in the
+    user's Watched or Watch Later lists.
+
     Strategy:
     1. Find all watched movies with my_rating >= 8.
-    2. Score every unrated movie already in the DB (watchlist or watched without rating).
-    3. Additionally, search OMDB for genres and directors found in liked movies to discover
-       new titles not yet in the user's DB.  These external candidates are scored the same way.
-    4. Deduplicate by imdb_id, sort by score, return top 15.
+    2. Search OMDB for genres and directors found in liked movies to discover
+       new titles not yet in the user's DB, and score them by overlap.
+    3. Deduplicate by imdb_id, sort by score, return top `limit`.
     """
     db = SessionLocal()
     try:
@@ -437,54 +446,20 @@ def get_recommendations():
             .filter(Movie.is_watched == True, Movie.my_rating >= 8)
             .all()
         )
- 
+
         if not liked_movies:
             return {"movies": []}
- 
-        # Collect already-known imdb_ids to avoid re-recommending them
+
+        # Collect already-known imdb_ids (watched or watch later) so we never
+        # recommend something the user already has in a list.
         known_ids = set(
             row.imdb_id
             for row in db.query(Movie.imdb_id).all()
         )
- 
-        # --- Pool 1: unrated movies already in the DB ---
-        db_candidates = (
-            db.query(Movie)
-            .filter(Movie.my_rating == None)
-            .all()
-        )
- 
+
         recommendations: dict[str, dict] = {}  # keyed by imdb_id
- 
-        for candidate in db_candidates:
-            score, reasons = _score_candidate(
-                {
-                    "genre": candidate.genre,
-                    "director": candidate.director,
-                    "actors": candidate.actors,
-                    "imdb_rating": candidate.imdb_rating,
-                },
-                liked_movies,
-            )
-            if score > 0:
-                recommendations[candidate.imdb_id] = {
-                    "id": candidate.id,
-                    "imdb_id": candidate.imdb_id,
-                    "title": candidate.title,
-                    "poster": candidate.poster,
-                    "year": candidate.year,
-                    "runtime": candidate.runtime,
-                    "genre": candidate.genre,
-                    "director": candidate.director,
-                    "actors": candidate.actors,
-                    "plot": candidate.plot,
-                    "imdb_rating": candidate.imdb_rating,
-                    "score": score,
-                    "reason": ", ".join(sorted(set(reasons))),
-                }
- 
-        # --- Pool 2: OMDB search for new titles ---
-        # Build search terms from liked movies: top genres + directors
+
+        # Search OMDB for new titles based on genres + directors of liked movies
         search_terms = set()
  
         for liked in liked_movies:
@@ -498,17 +473,21 @@ def get_recommendations():
                 if director and director.lower() != "n/a":
                     search_terms.add(director)
  
-        # Limit to at most 5 search terms to avoid too many API calls
-        for term in list(search_terms)[:5]:
+        # Scale how many search terms / results-per-term we pull based on how
+        # many recommendations were requested, so "Get More" can actually dig deeper.
+        term_cap = min(len(search_terms), max(5, min(10, limit // 3)))
+        results_per_term = max(5, min(10, limit // 2))
+
+        for term in list(search_terms)[:term_cap]:
             try:
                 url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&s={requests.utils.quote(term)}&type=movie"
                 resp = requests.get(url, timeout=5)
                 data = resp.json()
- 
+
                 if "Search" not in data:
                     continue
- 
-                for result in data["Search"][:5]:  # Check up to 5 results per term
+
+                for result in data["Search"][:results_per_term]:
                     iid = result.get("imdbID")
                     if not iid or iid in known_ids or iid in recommendations:
                         continue
@@ -520,7 +499,20 @@ def get_recommendations():
  
                     if details.get("Response") != "True":
                         continue
- 
+
+                    # Skip bonus-feature/featurette junk that OMDB mistags as
+                    # Type=movie (e.g. 5-minute "director spotlight" clips).
+                    genre_lower = (details.get("Genre") or "").lower()
+                    if "short" in genre_lower or "talk-show" in genre_lower:
+                        continue
+
+                    try:
+                        runtime_minutes = int((details.get("Runtime") or "").split()[0])
+                    except (ValueError, IndexError):
+                        runtime_minutes = None
+                    if runtime_minutes is not None and runtime_minutes < 40:
+                        continue
+
                     candidate_data = {
                         "genre": details.get("Genre"),
                         "director": details.get("Director"),
@@ -543,18 +535,18 @@ def get_recommendations():
                             "actors": details.get("Actors"),
                             "plot": details.get("Plot"),
                             "imdb_rating": details.get("imdbRating"),
+                            "type": details.get("Type"),
                             "score": score,
                             "reason": ", ".join(sorted(set(reasons))),
                         }
- 
+
             except Exception:
                 # Don't crash if one OMDB call fails
                 continue
- 
+
         sorted_recs = sorted(recommendations.values(), key=lambda x: x["score"], reverse=True)
- 
-        return {"movies": sorted_recs[:15]}
- 
+
+        return {"movies": sorted_recs[:limit]}
+
     finally:
         db.close()
- 

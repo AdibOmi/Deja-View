@@ -15,7 +15,8 @@ class Movie(Base):
     actors=Column(String, nullable=True)
     imdb_rating=Column(String, nullable=True)
     plot=Column(Text, nullable=True)
-    
+    media_type=Column(String, nullable=True)
+
     my_rating = Column(Float, nullable=True)
     my_comment = Column(Text, nullable=True)
     is_watched = Column(Boolean, default=True)

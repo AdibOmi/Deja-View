@@ -4,8 +4,26 @@ import "./HomePage.css";
 import MovieCard from "../components/MovieCard";
 
 const API = "http://127.0.0.1:8000";
+const REC_PAGE_SIZE = 15;
 
-function SeeAllModal({ title, movies, onClose, renderCard }) {
+function ratingValue(movie) {
+  if (movie.my_rating !== null && movie.my_rating !== undefined) return movie.my_rating;
+  const parsed = parseFloat(movie.imdb_rating);
+  return isNaN(parsed) ? -Infinity : parsed;
+}
+
+function sortByRating(movies) {
+  return [...movies].sort((a, b) => ratingValue(b) - ratingValue(a));
+}
+
+function splitByType(movies) {
+  return {
+    movies: movies.filter((m) => m.type !== "series"),
+    shows: movies.filter((m) => m.type === "series"),
+  };
+}
+
+function SeeAllModal({ title, movies, onClose, renderCard, footer }) {
   return (
     <div className="seeAllOverlay" onClick={onClose}>
       <div className="seeAllModal" onClick={(e) => e.stopPropagation()}>
@@ -16,6 +34,19 @@ function SeeAllModal({ title, movies, onClose, renderCard }) {
         <div className="seeAllGrid">
           {movies.map((movie) => renderCard(movie))}
         </div>
+        {footer}
+      </div>
+    </div>
+  );
+}
+
+function TypeRow({ label, movies, renderCard }) {
+  if (movies.length === 0) return null;
+  return (
+    <div className="typeRow">
+      <h3 className="typeRowLabel">{label}</h3>
+      <div className="movieScrollRow">
+        {movies.map((movie) => renderCard(movie))}
       </div>
     </div>
   );
@@ -27,6 +58,7 @@ function HomePage() {
   const [savedMovies, setSavedMovies] = useState([]);
   const [watchlistMovies, setWatchlistMovies] = useState([]);
   const [recommendedMovies, setRecommendedMovies] = useState([]);
+  const [recLimit, setRecLimit] = useState(REC_PAGE_SIZE);
 
   const [editingMovieId, setEditingMovieId] = useState(null);
   const [editRating, setEditRating] = useState("");
@@ -38,7 +70,7 @@ function HomePage() {
   const [query, setQuery] = useState("");
 
   // See All modal state
-  const [seeAllSection, setSeeAllSection] = useState(null); // "watched" | "watchlist"
+  const [seeAllSection, setSeeAllSection] = useState(null); // "watched" | "watchlist" | "recommendations"
 
   async function loadSavedMovies() {
     const res = await fetch(`${API}/movies`);
@@ -52,10 +84,16 @@ function HomePage() {
     setWatchlistMovies(data.movies || []);
   }
 
-  async function loadRecommendations() {
-    const res = await fetch(`${API}/recommendations`);
+  async function loadRecommendations(limit = recLimit) {
+    const res = await fetch(`${API}/recommendations?limit=${limit}`);
     const data = await res.json();
     setRecommendedMovies(data.movies || []);
+  }
+
+  async function getMoreRecommendations() {
+    const newLimit = recLimit + REC_PAGE_SIZE;
+    setRecLimit(newLimit);
+    await loadRecommendations(newLimit);
   }
 
   useEffect(() => {
@@ -241,13 +279,33 @@ function HomePage() {
     );
   }
 
+  function renderRecommendationCard(movie) {
+    return (
+      <MovieCard key={movie.imdb_id} movie={movie}>
+        <p className="imdb-line">⭐ {movie.imdb_rating || "N/A"}</p>
+        {movie.reason && <p className="reason-tag">{movie.reason}</p>}
+        <div className="buttonRow">
+          <button className="watchedBtn" onClick={(e) => { e.stopPropagation(); saveMovie(movie); }}>
+            Watched
+          </button>
+          <button className="watchLaterBtn" onClick={(e) => { e.stopPropagation(); saveWatchLater(movie); }}>
+            Watch Later
+          </button>
+        </div>
+      </MovieCard>
+    );
+  }
+
+  const { movies: watchedMovies, shows: watchedShows } = splitByType(sortByRating(savedMovies));
+  const { movies: watchlistMoviesOnly, shows: watchlistShows } = splitByType(watchlistMovies);
+
   return (
     <div className="app">
       {/* Header */}
       <header className="appHeader">
         <div className="headerLeft">
           <h1 className="appTitle">Déjà View</h1>
-          <p className="subtitle">Your personal movie diary.</p>
+          <p className="subtitle">Never forget why you loved it.</p>
         </div>
         <div className="searchBox">
           <input
@@ -274,38 +332,30 @@ function HomePage() {
       {/* ===== Recommendations ===== */}
       <section className="section">
         <div className="sectionHeader">
-          <h2>✨ Recommended For You</h2>
-          <span className="sectionHint">Based on movies you rated 8+</span>
+          <h2>Recommended For You</h2>
+          <div className="sectionHeaderRight">
+            <span className="sectionHint">Based on movies you rated 8+</span>
+            {recommendedMovies.length > 0 && (
+              <button className="seeAllBtn" onClick={() => setSeeAllSection("recommendations")}>
+                See All ({recommendedMovies.length})
+              </button>
+            )}
+          </div>
         </div>
 
         {recommendedMovies.length === 0 ? (
           <p className="emptyState">Rate a few movies 8 or above to get personalised recommendations.</p>
         ) : (
-          <div className="recommendationRow">
-  <div className="recommendationTrack">
-    {[...recommendedMovies, ...recommendedMovies].map((movie, index) => (
-      <MovieCard key={`${movie.imdb_id}-${index}`} movie={movie}>
-        <p className="imdb-line">⭐ {movie.imdb_rating || "N/A"}</p>
-        {movie.reason && <p className="reason-tag">{movie.reason}</p>}
-        <div className="buttonRow">
-          <button className="watchedBtn" onClick={(e) => { e.stopPropagation(); saveMovie(movie); }}>
-            Watched
-          </button>
-          <button className="watchLaterBtn" onClick={(e) => { e.stopPropagation(); saveWatchLater(movie); }}>
-            Watch Later
-          </button>
-        </div>
-      </MovieCard>
-    ))}
-  </div>
-</div>
+          <div className="movieScrollRow">
+            {recommendedMovies.map((movie) => renderRecommendationCard(movie))}
+          </div>
         )}
       </section>
 
       {/* ===== Watched ===== */}
       <section className="section">
         <div className="sectionHeader">
-          <h2>🎬 Watched</h2>
+          <h2>Watched</h2>
           {savedMovies.length > 0 && (
             <button className="seeAllBtn" onClick={() => setSeeAllSection("watched")}>
               See All ({savedMovies.length})
@@ -316,16 +366,17 @@ function HomePage() {
         {savedMovies.length === 0 ? (
           <p className="emptyState">No watched movies yet. Search and add some!</p>
         ) : (
-          <div className="movieScrollRow">
-            {savedMovies.map((movie) => renderWatchedCard(movie))}
-          </div>
+          <>
+            <TypeRow label="Movies" movies={watchedMovies} renderCard={renderWatchedCard} />
+            <TypeRow label="Shows" movies={watchedShows} renderCard={renderWatchedCard} />
+          </>
         )}
       </section>
 
       {/* ===== Watch Later ===== */}
       <section className="section">
         <div className="sectionHeader">
-          <h2>🕐 Watch Later</h2>
+          <h2>Watch Later</h2>
           {watchlistMovies.length > 0 && (
             <button className="seeAllBtn" onClick={() => setSeeAllSection("watchlist")}>
               See All ({watchlistMovies.length})
@@ -336,9 +387,10 @@ function HomePage() {
         {watchlistMovies.length === 0 ? (
           <p className="emptyState">Your watchlist is empty.</p>
         ) : (
-          <div className="movieScrollRow">
-            {watchlistMovies.map((movie) => renderWatchlistCard(movie))}
-          </div>
+          <>
+            <TypeRow label="Movies" movies={watchlistMoviesOnly} renderCard={renderWatchlistCard} />
+            <TypeRow label="Shows" movies={watchlistShows} renderCard={renderWatchlistCard} />
+          </>
         )}
       </section>
 
@@ -346,7 +398,7 @@ function HomePage() {
       {seeAllSection === "watched" && (
         <SeeAllModal
           title={`All Watched Movies (${savedMovies.length})`}
-          movies={savedMovies}
+          movies={sortByRating(savedMovies)}
           onClose={() => setSeeAllSection(null)}
           renderCard={renderWatchedCard}
         />
@@ -358,6 +410,20 @@ function HomePage() {
           movies={watchlistMovies}
           onClose={() => setSeeAllSection(null)}
           renderCard={renderWatchlistCard}
+        />
+      )}
+
+      {seeAllSection === "recommendations" && (
+        <SeeAllModal
+          title={`Recommended For You (${recommendedMovies.length})`}
+          movies={recommendedMovies}
+          onClose={() => setSeeAllSection(null)}
+          renderCard={renderRecommendationCard}
+          footer={
+            <div className="getMoreRow">
+              <button className="seeAllBtn" onClick={getMoreRecommendations}>Get More</button>
+            </div>
+          }
         />
       )}
     </div>

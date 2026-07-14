@@ -1,5 +1,4 @@
 import { useState } from "react";
-import "./MovieCard.css";
 
 function MovieCard({ movie, children }) {
   const [showDetails, setShowDetails] = useState(false);
