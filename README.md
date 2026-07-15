@@ -8,40 +8,40 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 
 <table>
 <tr>
-<td align="center"><img src="screenshots/LogIn.png" width="640"/><br/><sub>Log in</sub></td>
+<td align="center"><img src="screenshots/SignUp.png" width="640"/><br/><sub>Sign up</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/SignUp.png" width="640"/><br/><sub>Sign up</sub></td>
+<td align="center"><img src="screenshots/LogIn.png" width="640"/><br/><sub>Log in</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="screenshots/HomePage.png" width="640"/><br/><sub>Home — recommendations, Watched, Watch Later</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/Description.png" width="640"/><br/><sub>Movie detail view</sub></td>
-</tr>
-<tr>
 <td align="center"><img src="screenshots/Watched.png" width="640"/><br/><sub>Watched list</sub></td>
 </tr>
 <tr>
+<td align="center"><img src="screenshots/Description.png" width="640"/><br/><sub>Movie detail view</sub></td>
+</tr>
+<tr>
 <td align="center"><img src="screenshots/WatchLater.png" width="640"/><br/><sub>Watch Later list</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Search-2.png" width="640"/><br/><sub>Finding a specific movie</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Search.png" width="640"/><br/><sub>Search results</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/SearchResults.png" width="640"/><br/><sub>Adding a rating and review from search results</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Profile.png" width="640"/><br/><sub>Profile</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="screenshots/Friends.png" width="640"/><br/><sub>Friends</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="screenshots/AddFriend.png" width="640"/><br/><sub>Adding a friend</sub></td>
-</tr>
-<tr>
-<td align="center"><img src="screenshots/Profile.png" width="640"/><br/><sub>Profile</sub></td>
-</tr>
-<tr>
-<td align="center"><img src="screenshots/Search.png" width="640"/><br/><sub>Search results</sub></td>
-</tr>
-<tr>
-<td align="center"><img src="screenshots/Search-2.png" width="640"/><br/><sub>Finding a specific movie</sub></td>
-</tr>
-<tr>
-<td align="center"><img src="screenshots/SearchResults.png" width="640"/><br/><sub>Adding a rating and review from search results</sub></td>
 </tr>
 </table>
 
