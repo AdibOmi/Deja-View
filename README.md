@@ -25,13 +25,15 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 </tr>
 <tr>
 <td align="center"><img src="screenshots/Profile.png" width="420"/><br/><sub>Profile</sub></td>
-<td></td>
+<td align="center"><img src="screenshots/Search.png" width="420"/><br/><sub>Search results</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Search-2.png" width="420"/><br/><sub>Finding a specific movie</sub></td>
+<td align="center"><img src="screenshots/SearchResults.png" width="420"/><br/><sub>Adding a rating and review from search results</sub></td>
 </tr>
 </table>
 
 > The "Recommended For You" row is generated live from your own ratings, so it won't look like the screenshot above — it's different for every account and changes as you rate more movies.
->
-> No search results screenshot is included right now since TMDB is temporarily down.
 
 ## Features
 
