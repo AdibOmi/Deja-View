@@ -124,6 +124,38 @@ npm run dev
 
 The app expects the backend at `http://127.0.0.1:8000` and runs on `http://localhost:5173` by default.
 
+## Deploying
+
+Netlify only serves the static frontend — it can't run the FastAPI backend or Postgres.
+Deploy the backend first, then the frontend, pointing it at the backend's URL.
+
+### 1. Backend + database (Render)
+
+A [render.yaml](render.yaml) blueprint provisions a free Postgres database and a
+web service for the API in one step:
+
+1. Push this repo to GitHub (if not already).
+2. In Render, click **New > Blueprint** and select the repo — it reads `render.yaml` automatically.
+3. When prompted, fill in `OMDB_API_KEY`, `TMDB_API_KEY`, and `CORS_ORIGINS` (leave `CORS_ORIGINS` blank for now — you'll set it after step 2).
+4. Deploy. Note the resulting API URL, e.g. `https://dejaview-api.onrender.com`.
+
+### 2. Frontend (Netlify)
+
+```powershell
+./deploy-netlify.ps1 -BackendUrl https://dejaview-api.onrender.com
+```
+
+This installs the Netlify CLI if needed, links/creates a Netlify site, sets
+`VITE_API_BASE` to your backend URL, builds, and deploys to production.
+[netlify.toml](netlify.toml) also configures the same build settings for Netlify's
+Git-connected dashboard flow, in case you prefer clicking through the UI instead.
+
+### 3. Close the loop on CORS
+
+Once you have the Netlify URL (e.g. `https://dejaview.netlify.app`), go back to the
+Render service's environment variables and set `CORS_ORIGINS` to it (comma-separate
+multiple origins), then redeploy the backend.
+
 ## Project structure
 
 ```

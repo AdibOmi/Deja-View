@@ -45,10 +45,13 @@ app=FastAPI()
 load_dotenv()
 
 
+default_origins = ["http://localhost:5173", "http://localhost:3000"]
+extra_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
-    #vite + CRA
+    allow_origins=default_origins + extra_origins,
+    #vite + CRA, plus any deployed frontend URL(s) via CORS_ORIGINS env var
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
