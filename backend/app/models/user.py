@@ -8,4 +8,5 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     display_name = Column(String, nullable=True)
     friend_code = Column(String, unique=True, index=True, nullable=True)
+    favorite_genres = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

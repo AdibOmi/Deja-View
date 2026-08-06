@@ -3,16 +3,20 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import "./SearchPage.css";
 
 import MovieCard from "../components/MovieCard";
+import SearchBox from "../components/SearchBox";
 import { apiFetch } from "../api";
+import { useToast } from "../context/ToastContext";
 
 function SearchPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { showToast } = useToast();
 
   const initialQuery = searchParams.get("q") || "";
 
   const [query, setQuery] = useState(initialQuery);
   const [searchResults, setSearchResults] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const [watchLaterMovieId, setWatchLaterMovieId] = useState(null);
   const [newWatchComment, setNewWatchComment] = useState("");
@@ -43,6 +47,8 @@ function SearchPage() {
     const data = await apiFetch(
       `/search?query=${encodeURIComponent(searchText.trim())}`
     );
+
+    setHasSearched(true);
 
     if (!data || !Array.isArray(data.movies)) {
       setSearchResults([]);
@@ -76,7 +82,7 @@ function SearchPage() {
     setNewComment("");
     loadExistingStatus();
 
-    alert("Movie saved with rating!");
+    showToast("Movie saved with rating!", "success");
   }
 
   async function saveWatchLater(movie) {
@@ -98,7 +104,7 @@ function SearchPage() {
     setNewWatchComment("");
     loadExistingStatus();
 
-    alert("Added to watch later!");
+    showToast("Added to watch later!", "success");
   }
 
   return (
@@ -109,20 +115,19 @@ function SearchPage() {
 
       <h1 id="searchResults">Search Results</h1>
 
-      <div className="searchBox">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              searchMovies(query);
-            }
-          }}
-          placeholder="Search for a movie..."
-        />
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        onSubmit={(text) => searchMovies(text)}
+        placeholder="Search for a movie..."
+      />
 
-        <button id="searchBtn" onClick={() => searchMovies(query)}>Search</button>
-      </div>
+      {hasSearched && searchResults.length === 0 && (
+        <p className="emptyState">
+          No movies found for "{query}". Try a different title, an actor or
+          director's name, or a genre like "comedy".
+        </p>
+      )}
 
       <div className="searchResultsGrid">
         {searchResults.map((movie) => {

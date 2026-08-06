@@ -135,3 +135,32 @@
   width: auto;
   flex-shrink: 0;
 }
+
+.genreChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.genreChip {
+  background: var(--surface3);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.genreChip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  transform: none;
+}
+
+.genreChip--selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}

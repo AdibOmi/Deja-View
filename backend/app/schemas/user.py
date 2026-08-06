@@ -8,6 +8,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     display_name: str | None = None
+    favorite_genres: str | None = None
 
 
 class UserOut(BaseModel):
@@ -15,6 +16,7 @@ class UserOut(BaseModel):
     username: str
     display_name: str | None = None
     friend_code: str | None = None
+    favorite_genres: str | None = None
 
     class Config:
         from_attributes = True

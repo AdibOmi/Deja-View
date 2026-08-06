@@ -2,6 +2,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 import requests
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 #dotenv is needed to load variables from env files so that 
@@ -74,6 +75,50 @@ def _tmdb_get(path: str, params: dict | None = None) -> dict:
     resp = requests.get(f"{TMDB_BASE_URL}{path}", params=query, timeout=5)
     resp.raise_for_status()
     return resp.json()
+
+
+# TMDB's movie genre list (stable, rarely changes -- not worth an API call).
+GENRE_NAME_TO_ID = {
+    "action": 28, "adventure": 12, "animation": 16, "comedy": 35, "crime": 80,
+    "documentary": 99, "drama": 18, "family": 10751, "fantasy": 14,
+    "history": 36, "horror": 27, "music": 10402, "mystery": 9648,
+    "romance": 10749, "science fiction": 878, "sci-fi": 878, "scifi": 878,
+    "thriller": 53, "war": 10752, "western": 37,
+}
+
+
+def _omdb_details_by_imdb_id(imdb_id: str) -> dict | None:
+    try:
+        resp = requests.get(
+            f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&i={imdb_id}&plot=short",
+            timeout=5,
+        )
+        details = resp.json()
+    except requests.RequestException:
+        return None
+    if details.get("Response") != "True":
+        return None
+    return {
+        "imdb_id": details.get("imdbID"),
+        "title": details.get("Title"),
+        "poster": details.get("Poster"),
+        "year": details.get("Year"),
+        "runtime": details.get("Runtime"),
+        "genre": details.get("Genre"),
+        "director": details.get("Director"),
+        "actors": details.get("Actors"),
+        "plot": details.get("Plot"),
+        "imdb_rating": details.get("imdbRating"),
+        "type": details.get("Type"),
+    }
+
+
+def _tmdb_id_to_imdb_id(tmdb_id: int) -> str | None:
+    try:
+        ext = _tmdb_get(f"/movie/{tmdb_id}/external_ids")
+        return ext.get("imdb_id") or None
+    except Exception:
+        return None
 
 
 Base.metadata.create_all(bind=engine)
@@ -206,7 +251,8 @@ def update_me(payload: UserUpdate, current_user: User = Depends(get_current_user
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == current_user.id).first()
-        user.display_name = payload.display_name
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(user, field, value)
         db.commit()
         db.refresh(user)
         return user
@@ -631,41 +677,188 @@ def get_share_history(friend_user_id: int, current_user: User = Depends(get_curr
         db.close()
 
 
+_popular_movies_cache: dict = {"movies": [], "fetched_at": 0}
+POPULAR_CACHE_TTL_SECONDS = 3600
+
+
+def _get_popular_movies() -> list[dict]:
+    """
+    Cached (1hr) list of currently popular movies. Used to prefix-match very
+    short autocomplete queries (see search_suggest) -- TMDB's own search
+    relevance ranking doesn't reliably surface well-known movies for a query
+    as short as "sp" (it can bury e.g. Spider-Man behind thousands of
+    obscure titles that also happen to contain "sp"), but a well-known movie
+    is almost always in the popular list, so a plain prefix check against it
+    works far better for short queries.
+    """
+    now = time.time()
+    if now - _popular_movies_cache["fetched_at"] > POPULAR_CACHE_TTL_SECONDS:
+        movies = []
+        try:
+            for page in range(1, 4):
+                data = _tmdb_get("/movie/popular", {"page": page})
+                movies.extend(data.get("results") or [])
+        except Exception:
+            pass
+        if movies:
+            _popular_movies_cache["movies"] = movies
+            _popular_movies_cache["fetched_at"] = now
+    return _popular_movies_cache["movies"]
+
+
+@app.get("/search/suggest")
+def search_suggest(query: str, current_user: User = Depends(get_current_user)):
+    """
+    Lightweight autocomplete for as-you-type suggestions. Deliberately just
+    one TMDB search call (plus a prefix check against a cached popular-movies
+    list) with no OMDB hydration and no genre/person lookups -- the full
+    /search below is far too slow (multiple sequential + parallel API calls)
+    to run on every keystroke.
+    """
+    q = query.strip()
+    if len(q) < 2:
+        return {"suggestions": []}
+
+    q_lower = q.lower()
+    candidates: dict[int, dict] = {}
+
+    for movie in _get_popular_movies():
+        title = movie.get("title") or ""
+        if title.lower().startswith(q_lower):
+            candidates[movie["id"]] = movie
+
+    try:
+        data = _tmdb_get("/search/movie", {"query": q, "include_adult": "false"})
+        for r in data.get("results") or []:
+            candidates.setdefault(r["id"], r)
+    except Exception:
+        pass
+
+    ranked = sorted(candidates.values(), key=lambda r: r.get("popularity") or 0, reverse=True)[:8]
+
+    suggestions = [
+        {
+            "tmdb_id": r.get("id"),
+            "title": r.get("title"),
+            "year": (r.get("release_date") or "")[:4] or None,
+            "poster": f"https://image.tmdb.org/t/p/w92{r['poster_path']}" if r.get("poster_path") else None,
+        }
+        for r in ranked
+    ]
+
+    return {"suggestions": suggestions}
+
+
 @app.get("/search")
 def search_movie(query: str, current_user: User = Depends(get_current_user)):
-    url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&s={query}"
-    response=requests.get(url)
-    data=response.json()
-   
-    if "Search" not in data:
-        #Search is a list of movies omdb returns
-        return {"movies":[]}
-    
+    """
+    Combines three lookup strategies so partial titles, typos, actor/director
+    names, and bare genre names all surface relevant movies, ranked so
+    well-known movies lead instead of obscure fan-made junk that happens to
+    share a substring with the query:
+      1. TMDB fuzzy title search -- handles things OMDB's stricter title
+         matching misses, e.g. "spiderman" for "Spider-Man". Every candidate
+         (from this and the two sources below) is tracked with its TMDB
+         popularity score, and the final id list is ranked by that -- a
+         plain set of ids has no meaningful order (hash order, not
+         relevance), which is what let "Italian Spiderman" outrank the
+         actual movies before this was scored.
+      2. TMDB genre discovery, when the whole query is a genre name (e.g.
+         "comedy").
+      3. TMDB person search, when the query matches an actor/director --
+         pulls that person's most popular movie credits.
+      4. OMDB's own title search, added last as supplementary fill -- it has
+         no popularity signal of its own, but occasionally surfaces an exact
+         title match TMDB's search ranks lower.
+    Every candidate is resolved to its IMDb id and hydrated with full OMDB
+    details, so results look identical to (and are just as saveable as)
+    OMDB's own search.
+    """
+    q = query.strip()
+    if not q:
+        return {"movies": []}
+
+    imdb_ids: list[str] = []
+    seen: set[str] = set()
+
+    def _add(imdb_id):
+        if imdb_id and imdb_id not in seen:
+            seen.add(imdb_id)
+            imdb_ids.append(imdb_id)
+
+    tmdb_candidates: dict[int, float] = {}
+
+    def _track(results):
+        for r in results:
+            tid = r.get("id")
+            if not tid:
+                continue
+            pop = r.get("popularity") or 0
+            if pop > tmdb_candidates.get(tid, -1):
+                tmdb_candidates[tid] = pop
+
+    try:
+        data = _tmdb_get("/search/movie", {"query": q, "include_adult": "false"})
+        _track((data.get("results") or [])[:20])
+    except Exception:
+        pass
+
+    genre_id = GENRE_NAME_TO_ID.get(q.lower())
+    if genre_id:
+        try:
+            data = _tmdb_get(
+                "/discover/movie",
+                {"with_genres": genre_id, "sort_by": "popularity.desc"},
+            )
+            _track((data.get("results") or [])[:20])
+        except Exception:
+            pass
+
+    # Actor/director name search. Deliberately not gated behind "skip if we
+    # already have enough title matches" -- a query like "nolan" or "tom
+    # hanks" also matches plenty of low-quality documentary/tribute titles
+    # that literally contain the name, which would trip a naive quantity
+    # threshold and hide the person's actual movies (found via their credits,
+    # not a title match) behind that junk.
+    try:
+        pdata = _tmdb_get("/search/person", {"query": q})
+        person_ids = [p["id"] for p in (pdata.get("results") or [])[:3]]
+
+        def _fetch_credits(person_id):
+            try:
+                return _tmdb_get(f"/person/{person_id}/movie_credits")
+            except Exception:
+                return None
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            for credits in executor.map(_fetch_credits, person_ids):
+                if credits:
+                    _track((credits.get("cast") or []) + (credits.get("crew") or []))
+    except Exception:
+        pass
+
+    ranked_tmdb_ids = sorted(tmdb_candidates, key=lambda tid: tmdb_candidates[tid], reverse=True)[:30]
+
+    if ranked_tmdb_ids:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for imdb_id in executor.map(_tmdb_id_to_imdb_id, ranked_tmdb_ids):
+                _add(imdb_id)
+
+    try:
+        resp = requests.get(f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&s={q}", timeout=5)
+        data = resp.json()
+        for m in data.get("Search", [])[:15]:
+            _add(m.get("imdbID"))
+    except requests.RequestException:
+        pass
+
+    imdb_ids = imdb_ids[:24]
+
     movie_list = []
-
-    for m in data["Search"]:
-
-        imdb_id = m["imdbID"]
-
-        details_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&i={imdb_id}&plot=short"
-
-        details_response = requests.get(details_url)
-
-        details = details_response.json()
-
-        movie_list.append({
-            "imdb_id": details.get("imdbID"),
-            "title": details.get("Title"),
-            "poster": details.get("Poster"),
-            "year": details.get("Year"),
-            "runtime": details.get("Runtime"),
-            "genre": details.get("Genre"),
-            "director": details.get("Director"),
-            "actors": details.get("Actors"),
-            "plot": details.get("Plot"),
-            "imdb_rating": details.get("imdbRating"),
-            "type": details.get("Type"),
-        })
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        for movie in executor.map(_omdb_details_by_imdb_id, imdb_ids):
+            if movie:
+                movie_list.append(movie)
 
     return {"movies": movie_list}
 
@@ -1074,13 +1267,33 @@ def get_recommendations(limit: int = 15, exclude: str = "", current_user: User =
 
         if not liked_movies:
             # New accounts (or ones with nothing rated 8+ yet) have no taste
-            # profile to work from. Seed discovery from TMDB's globally
-            # top-rated movies instead, so the section isn't just empty --
-            # `_score_candidate` below still runs (genre/actor/director
-            # overlap is simply empty against no liked movies), and its
-            # high-imdb-rating bonus is enough to surface these.
+            # profile to work from. If they picked favorite genres during
+            # onboarding, seed discovery from those first; TMDB's globally
+            # top-rated movies fill in the rest (or all of it, if no genres
+            # were picked), so the section isn't just empty -- `_score_candidate`
+            # below still runs (genre/actor/director overlap is simply empty
+            # against no liked movies), and its high-imdb-rating bonus is
+            # enough to surface these.
+            seeded_from_genres = False
+            if current_user.favorite_genres:
+                genre_ids = {
+                    GENRE_NAME_TO_ID[g.strip().lower()]
+                    for g in current_user.favorite_genres.split(",")
+                    if g.strip().lower() in GENRE_NAME_TO_ID
+                }
+                for genre_id in genre_ids:
+                    try:
+                        data = _tmdb_get(
+                            "/discover/movie",
+                            {"with_genres": genre_id, "sort_by": "vote_average.desc", "vote_count.gte": 200},
+                        )
+                        candidate_tmdb_ids.update(r["id"] for r in (data.get("results") or []))
+                        seeded_from_genres = True
+                    except Exception:
+                        pass
+
             try:
-                for page in range(1, 6):
+                for page in range(1, 3 if seeded_from_genres else 6):
                     data = _tmdb_get("/movie/top_rated", {"page": page})
                     candidate_tmdb_ids.update(r["id"] for r in (data.get("results") or []))
             except Exception:

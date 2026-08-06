@@ -61,6 +61,6 @@ export function getMe() {
   return apiFetch("/auth/me");
 }
 
-export function updateMe(display_name) {
-  return apiFetch("/auth/me", { method: "PATCH", body: { display_name } });
+export function updateMe(fields) {
+  return apiFetch("/auth/me", { method: "PATCH", body: fields });
 }

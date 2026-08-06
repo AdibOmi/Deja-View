@@ -35,7 +35,7 @@ function ProfilePage() {
     setSaved(false);
     setSubmitting(true);
     try {
-      await updateMe(displayName.trim() || null);
+      await updateMe({ display_name: displayName.trim() || null });
       await refreshUser();
       setSaved(true);
     } catch (err) {

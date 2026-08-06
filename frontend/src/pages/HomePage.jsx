@@ -3,8 +3,11 @@ import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 import MovieCard from "../components/MovieCard";
 import Avatar from "../components/Avatar";
+import SearchBox from "../components/SearchBox";
 import { apiFetch } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import { useConfirm } from "../context/ConfirmContext";
 
 const REC_PAGE_SIZE = 30;
 
@@ -57,6 +60,8 @@ function TypeRow({ label, movies, renderCard }) {
 function HomePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
   const [savedMovies, setSavedMovies] = useState([]);
   const [watchlistMovies, setWatchlistMovies] = useState([]);
@@ -112,7 +117,7 @@ function HomePage() {
       const newMovies = data.movies || [];
       setRecommendedMovies((prev) => [...prev, ...newMovies]);
       if (newMovies.length === 0) {
-        alert("No more new recommendations to show right now.");
+        showToast("No more new recommendations to show right now.", "info");
       }
     } finally {
       setLoadingMoreRecs(false);
@@ -169,7 +174,7 @@ function HomePage() {
     try {
       await apiFetch("/watchlist", { method: "POST", body: movie });
     } catch {
-      alert("Failed to add to watch later");
+      showToast("Failed to add to watch later", "error");
       return;
     }
     await loadWatchlistMovies();
@@ -177,7 +182,7 @@ function HomePage() {
   }
 
   async function deleteMovie(id) {
-    if (!window.confirm("Are you sure you want to delete this movie?")) return;
+    if (!(await confirm("Are you sure you want to delete this movie?"))) return;
     await apiFetch(`/movies/${id}`, { method: "DELETE" });
     loadSavedMovies();
   }
@@ -231,7 +236,7 @@ function HomePage() {
   }
 
   async function deleteWatchMovie(id) {
-    if (!window.confirm("Remove from Watch Later?")) return;
+    if (!(await confirm("Remove from Watch Later?"))) return;
     await apiFetch(`/watchlist/${id}`, { method: "DELETE" });
     setWatchlistMovies((prev) => prev.filter((m) => m.id !== id));
   }
@@ -255,7 +260,7 @@ function HomePage() {
       });
       setSharingMovieId(null);
     } catch (err) {
-      alert(err.message || "Failed to share movie");
+      showToast(err.message || "Failed to share movie", "error");
     }
   }
 
@@ -263,7 +268,7 @@ function HomePage() {
     try {
       await apiFetch(`/shares/${share.id}/add`, { method: "POST" });
     } catch (err) {
-      alert(err.message || "Failed to add this movie to your Watch Later list");
+      showToast(err.message || "Failed to add this movie to your Watch Later list", "error");
       return;
     }
     setInboxShares((prev) => prev.filter((s) => s.id !== share.id));
@@ -449,33 +454,26 @@ function HomePage() {
           <h1 className="appTitle">Deja View</h1>
           <p className="subtitle">Never forget why you loved it.</p>
         </div>
-        <div className="searchBox">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && query.trim())
-                navigate(`/search?q=${encodeURIComponent(query.trim())}`);
-            }}
-            placeholder="Search for a movie…"
-          />
-          <button
-            id="searchBtn"
-            onClick={() => {
-              if (query.trim())
-                navigate(`/search?q=${encodeURIComponent(query.trim())}`);
-            }}
-          >
-            Search
-          </button>
-        </div>
+        <SearchBox
+          value={query}
+          onChange={setQuery}
+          onSubmit={(text) => {
+            if (text.trim()) navigate(`/search?q=${encodeURIComponent(text.trim())}`);
+          }}
+          placeholder="Search for a movie…"
+        />
         <div className="headerRight">
           <div className="userChip" onClick={() => navigate("/profile")}>
             <Avatar name={user?.display_name || user?.username || "?"} size={32} />
             <span>{user?.display_name || user?.username}</span>
           </div>
           <button className="seeAllBtn" onClick={() => navigate("/friends")}>Friends</button>
-          <button className="seeAllBtn" onClick={() => { if (window.confirm("Are you sure you want to log out?")) logout(); }}>
+          <button
+            className="seeAllBtn"
+            onClick={async () => {
+              if (await confirm("Are you sure you want to log out?")) logout();
+            }}
+          >
             Log out
           </button>
         </div>

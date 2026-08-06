@@ -25,7 +25,7 @@ function SignupPage() {
     setSubmitting(true);
     try {
       await signup(username, password);
-      navigate("/");
+      navigate("/onboarding");
     } catch (err) {
       setError(err.message || "Failed to sign up");
     } finally {

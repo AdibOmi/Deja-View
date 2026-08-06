@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import "./FriendsPage.css";
 import Avatar from "../components/Avatar";
 import { apiFetch } from "../api";
+import { useToast } from "../context/ToastContext";
+import { useConfirm } from "../context/ConfirmContext";
 
 function formatFriendCode(code) {
   if (!code) return "";
@@ -11,6 +13,8 @@ function formatFriendCode(code) {
 
 function FriendsPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -58,7 +62,7 @@ function FriendsPage() {
       searchUsers();
       loadOutgoing();
     } catch (err) {
-      alert(err.message || "Failed to send request");
+      showToast(err.message || "Failed to send request", "error");
     }
   }
 
@@ -68,9 +72,9 @@ function FriendsPage() {
       await apiFetch("/friends/request", { method: "POST", body: { friend_code: codeInput.trim() } });
       setCodeInput("");
       loadOutgoing();
-      alert("Friend request sent!");
+      showToast("Friend request sent!", "success");
     } catch (err) {
-      alert(err.message || "Failed to send request");
+      showToast(err.message || "Failed to send request", "error");
     }
   }
 
@@ -85,7 +89,7 @@ function FriendsPage() {
   }
 
   async function unfriend(friendshipId) {
-    if (!window.confirm("Remove this friend?")) return;
+    if (!(await confirm("Remove this friend?"))) return;
     await apiFetch(`/friends/${friendshipId}`, { method: "DELETE" });
     loadFriends();
   }
