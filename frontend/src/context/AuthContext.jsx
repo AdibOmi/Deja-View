@@ -14,6 +14,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    api.setUnauthorizedHandler(() => setToken(null));
+  }, []);
+
+  useEffect(() => {
     if (token) {
       refreshUser().catch(() => {});
     } else {

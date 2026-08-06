@@ -9,6 +9,15 @@ function setToken(token) {
   else localStorage.removeItem("token");
 }
 
+// AuthContext registers a listener here so it can react when a request
+// discovers the token is dead (expired/invalid) -- apiFetch only touches
+// localStorage directly, which React state never re-reads on its own.
+let onUnauthorized = null;
+
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+}
+
 export async function apiFetch(path, options = {}) {
   const { body, headers, ...rest } = options;
   const token = getToken();
@@ -25,6 +34,7 @@ export async function apiFetch(path, options = {}) {
 
   if (res.status === 401) {
     setToken(null);
+    onUnauthorized?.();
   }
 
   if (!res.ok) {
