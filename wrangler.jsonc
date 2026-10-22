@@ -1,28 +1,35 @@
 {
-  // Cloudflare Pages config. Pages builds the React app into frontend/dist and
-  // serves it; /api/* is handled by the Pages Function in functions/api.
-  // Because this file sets pages_build_output_dir, Pages reads the bindings
-  // below from here (the dashboard's binding settings become read-only).
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "deja-view",
-  "pages_build_output_dir": "./frontend/dist",
+  "main": "worker/src/index.js",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat"],
+
+  // The React app (frontend/dist) is served as static assets. Only /api/*
+  // reaches the Worker; every other unknown path falls back to index.html so
+  // client-side routes like /friends survive a hard refresh.
+  "assets": {
+    "directory": "./frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
 
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "deja-view",
-      // Replace with the id printed by `npx wrangler d1 create deja-view`.
       "database_id": "0b9c4744-504c-49bf-ab80-572ced96615c",
       // Local dev (`--local`) keeps its own database under this id.
       "preview_database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "worker/migrations"
     }
-  ]
+  ],
 
-  // Secrets: add in the dashboard (Settings -> Variables and Secrets) for
-  // production, or in .dev.vars locally:
+  "observability": { "enabled": true }
+
+  // Secrets: Settings -> Variables and Secrets in the dashboard (or
+  // `npx wrangler secret put <NAME>`), and .dev.vars locally:
   //   TMDB_API_KEY, OMDB_API_KEY, JWT_SECRET
   //   ANTHROPIC_API_KEY (optional -- enables the AI plot round in quizzes)
 }
