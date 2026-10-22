@@ -8,44 +8,59 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 
 <table>
 <tr>
-<td align="center"><img src="screenshots/SignUp.png" width="640"/><br/><sub>Sign up</sub></td>
+<td align="center"><img src="screenshots/Login.jpg" width="720"/><br/><sub>Log in</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/LogIn.png" width="640"/><br/><sub>Log in</sub></td>
+<td align="center"><img src="screenshots/Home.jpg" width="720"/><br/><sub>Home: personalised picks, each with the reason it was chosen</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/HomePage.png" width="640"/><br/><sub>Home — recommendations, Watched, Watch Later</sub></td>
+<td align="center"><img src="screenshots/Home2.jpg" width="720"/><br/><sub>Home: Up next from your Watch Later list, and recently watched</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/Watched.png" width="640"/><br/><sub>Watched list</sub></td>
+<td align="center"><img src="screenshots/TitleView.jpg" width="720"/><br/><sub>Title view: your rating and review, trailer, quiz and share</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/Description.png" width="640"/><br/><sub>Movie detail view</sub></td>
+<td align="center"><img src="screenshots/TitleView2.jpg" width="720"/><br/><sub>Title view: cast, where to watch, and more like this</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/WatchLater.png" width="640"/><br/><sub>Watch Later list</sub></td>
+<td align="center"><img src="screenshots/ForYou.jpg" width="720"/><br/><sub>For You: recommendations filtered by films, series or hidden gems</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/Search-2.png" width="640"/><br/><sub>Search results</sub></td>
-</tr>
-<!-- <tr>
-<td align="center"><img src="screenshots/Search.png" width="640"/><br/><sub>Search results</sub></td>
-</tr> -->
-<tr>
-<td align="center"><img src="screenshots/SearchResults.png" width="640"/><br/><sub>Adding a rating and review from search results</sub></td>
+<td align="center"><img src="screenshots/Discover.jpg" width="720"/><br/><sub>Discover: Surprise me, trending this week and coming soon</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/Profile.png" width="640"/><br/><sub>Profile</sub></td>
+<td align="center"><img src="screenshots/Discover2.jpg" width="720"/><br/><sub>Discover: in cinemas now and top rated series</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/Friends.png" width="640"/><br/><sub>Friends</sub></td>
+<td align="center"><img src="screenshots/Discover3.jpg" width="720"/><br/><sub>Discover: all-time great films</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="screenshots/AddFriend.png" width="640"/><br/><sub>Adding a friend</sub></td>
+<td align="center"><img src="screenshots/Search.jpg" width="720"/><br/><sub>Instant search suggestions as you type</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Search2.jpg" width="720"/><br/><sub>Full search results</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Watched.jpg" width="720"/><br/><sub>Watched list with filters and sorting</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/News.jpg" width="720"/><br/><sub>News: film and TV headlines, filterable by source or by titles in your library</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Quiz.jpg" width="720"/><br/><sub>Quizzes: pick something you've watched to start a quiz</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Quiz2.jpg" width="720"/><br/><sub>Taking a quiz</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Friends.jpg" width="720"/><br/><sub>Friends: share your friend code or find people by name</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/Taste.jpg" width="720"/><br/><sub>Your Taste: stats, genre mix and all-time favourites</sub></td>
 </tr>
 </table>
 
-> The "Recommended For You" row is generated live from your own ratings, so it won't look like the screenshot above — it's different for every account and changes as you rate more movies.
+> Recommendations are generated live from each user's own ratings, so they differ for every account and change as you rate more.
 
 ## Features
 
@@ -54,7 +69,7 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 - Add titles to **Watched** or **Watch Later** in one click, straight from any poster.
 - Rate watched titles with a 10-star picker and keep a personal review; leave a note on Watch Later items explaining why you want to see them.
 - **Rewatch tracking** — log every time you watch something again.
-- A full title view with backdrop, cast, director, runtime, TMDB + IMDb ratings, **trailer**, **where to stream / rent / buy in your country** (JustWatch data via TMDB) and "More like this".
+- A full title view with backdrop, cast, director, runtime, IMDb rating, **trailer**, **where to stream / rent / buy in your country** (JustWatch data via TMDB) and "More like this".
 - Watched and Watch Later pages with filtering (text, film/series, genre) and sorting (rating, date, year, title, most rewatched).
 - Remove anything with one-click **Undo**.
 
@@ -62,8 +77,17 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 - **Because-you-liked-X** picks built from TMDB's recommendation graph for the titles you've watched, weighted by how highly you rated them, plus more from the directors behind your favourites.
 - Re-ranked by your **genre taste profile**, quality, and a diversity pass so one favourite doesn't take over. Each pick explains *why* it's there, and **hidden gems** get flagged.
 - Brand new accounts get picks seeded from the genres chosen during onboarding.
-- **Discover**: trending this week, coming soon (for your region), in cinemas, top rated — and **mood picks** (feel-good, mind-bending, tearjerker…) with a **Surprise me** button.
-- **Dashboard** with stats, your taste profile and all-time favourites.
+- **Discover**: trending this week, coming soon (for your region), in cinemas and top rated, plus a **Surprise me** button that opens a random pick you haven't seen.
+- **Your Taste**: stats, your genre mix and all-time favourites.
+
+### News & reminders
+- **Headlines** from Variety, Deadline, Collider, Screen Rant and IndieWire, filterable by source or to stories about titles in your library.
+- **Coming soon**: upcoming films and new series with a **Remind me** button (returning series remind on their next episode).
+- When a reminded title comes out, an "Out now" strip appears on Home.
+
+### Quizzes
+- Quiz yourself on anything you've watched: questions on cast, characters, director, release year and more, plus an optional **AI-written plot round**.
+- **Challenge friends**: everyone gets the same questions, only first attempts count, and a leaderboard ranks you against friends.
 
 ### Friends & sharing
 - Add friends by username search or by your unique **friend code**; requests need acceptance (and can be cancelled).
