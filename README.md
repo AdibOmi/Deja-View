@@ -78,12 +78,12 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 ## Tech stack
 
 **Frontend:** React 19, React Router, Vite — plain CSS design system
-**Backend:** Cloudflare Workers ([Hono](https://hono.dev)) + Cloudflare D1 (SQLite)
-**Hosting:** a single Cloudflare Worker serves both the API (`/api/*`) and the static app
+**Backend:** [Hono](https://hono.dev) on a Cloudflare Pages Function + Cloudflare D1 (SQLite)
+**Hosting:** Cloudflare Pages serves the static app and runs the API (`/api/*`) on the same origin
 **External APIs:** [TMDB](https://www.themoviedb.org/documentation/api) (catalogue, search, recommendations, providers), [OMDb](https://www.omdbapi.com/) (IMDb ratings)
 
 ### Why it's fast
-- No cold starts — Workers run at the edge, next to the user.
+- No cold starts — Pages Functions run at the edge, next to the user.
 - Search and recommendations use TMDB data directly (one or two parallel calls) instead of hydrating every result through OMDb; TMDB responses are memoised in the isolate and cached at Cloudflare's edge.
 - The whole library, friends list and inbox load in **one request / one D1 batch**; every change after that is optimistic (the UI updates instantly and reconciles in the background).
 - Recommendations, discover rows and search results are cached client-side (stale-while-revalidate), so revisiting a page is instant.
@@ -93,7 +93,7 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 Requirements: Node 20+, a free [Cloudflare account](https://dash.cloudflare.com/sign-up), TMDB + OMDb API keys.
 
 ```bash
-npm install                 # installs the Worker deps and the frontend (postinstall)
+npm install                 # installs the API deps and the frontend (postinstall)
 ```
 
 Create a `.dev.vars` file in the repo root (git-ignored) with your secrets:
@@ -109,32 +109,30 @@ Create the local database and run:
 
 ```bash
 npm run db:migrate:local    # creates the D1 tables locally
-npm run dev:api             # Worker API on http://127.0.0.1:8787
-npm run dev:web             # Vite on http://localhost:5173 (proxies /api to the Worker)
+npm run build               # once, so the local Pages server has something to serve
+npm run dev:api             # Pages dev server (API + last build) on http://127.0.0.1:8787
+npm run dev:web             # Vite on http://localhost:5173 (hot reload, proxies /api to :8787)
 ```
 
-`npm run dev` instead builds the frontend once and serves everything from the Worker on :8787.
+`npm run dev` builds the frontend and serves everything from the Pages dev server on :8787.
 
-## Deploying to Cloudflare
+## Deploying to Cloudflare Pages
 
-```bash
-npx wrangler login
-npx wrangler d1 create deja-view --location apac   # pick the region closest to your users
-```
+Pages builds from GitHub on every push to `master`.
 
-Copy the printed `database_id` into [wrangler.jsonc](wrangler.jsonc), then:
+1. Create the database (once): `npx wrangler login`, then
+   `npx wrangler d1 create deja-view --location apac`. Paste the printed id into `database_id` in
+   [wrangler.jsonc](wrangler.jsonc), and run `npm run db:migrate:remote` to create the tables.
+2. Commit and push to GitHub.
+3. In the Cloudflare dashboard: **Workers & Pages → Create → Pages → Import an existing Git repository**,
+   pick the repo, then set framework preset **None**, build command `npm run build`, build output
+   directory `frontend/dist` (root directory empty).
+4. Under **Environment variables**, add `TMDB_API_KEY`, `OMDB_API_KEY`, `JWT_SECRET` (and optionally
+   `ANTHROPIC_API_KEY`) as **encrypted** values, plus `NODE_VERSION` = `22`. Save and deploy.
 
-```bash
-npm run db:migrate:remote
-npx wrangler secret put TMDB_API_KEY
-npx wrangler secret put OMDB_API_KEY
-npx wrangler secret put JWT_SECRET
-npx wrangler secret put ANTHROPIC_API_KEY   # optional
-npm run deploy              # builds the frontend and deploys the Worker
-```
-
-The app is then live at `https://deja-view.<your-subdomain>.workers.dev`. To use your own domain,
-add a custom domain to the Worker in the Cloudflare dashboard (Workers & Pages → deja-view → Settings → Domains & Routes).
+The D1 binding and `nodejs_compat` flag come from [wrangler.jsonc](wrangler.jsonc). The app is live at
+`https://deja-view.pages.dev` (or a similar name); add your own domain under the project's **Custom domains** tab.
+When a change adds a migration, run `npm run db:migrate:remote` before pushing it.
 
 ### Migrating data from the old Render/Postgres backend
 
@@ -151,10 +149,11 @@ Old bcrypt hashes are verified once on first login and transparently upgraded.
 ## Project structure
 
 ```
-wrangler.jsonc             # Worker + D1 + static assets config
+wrangler.jsonc             # Pages config: build output dir, D1 binding, compat flags
+functions/api/[[path]].js  # Pages Function: hands every /api/* request to the Hono app
 worker/
   src/index.js             # Hono app: auth middleware, routing, errors
-  src/routes/              # account, library, catalog (search/titles/discover), recs, social
+  src/routes/              # account, library, catalog, recs, social, news (RSS/upcoming/reminders), quiz
   src/tmdb.js              # TMDB/OMDb client, caching, card normalisation
   src/auth.js              # PBKDF2 (+ legacy bcrypt) hashing, JWT, friend codes
   migrations/              # D1 schema
