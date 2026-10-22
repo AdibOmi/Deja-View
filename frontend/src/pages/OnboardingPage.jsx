@@ -1,76 +1,60 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./AuthPage.css";
-import { updateMe } from "../api";
+import AuthShell from "./AuthShell";
+import { api } from "../api";
+import { GENRES } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
-
-const GENRES = [
-  "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
-  "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery",
-  "Romance", "Science Fiction", "Thriller", "War", "Western",
-];
+import { useToast } from "../context/ToastContext";
 
 function OnboardingPage() {
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
-
+  const { setUser } = useAuth();
+  const { showToast } = useToast();
   const [selected, setSelected] = useState([]);
+  const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  function toggleGenre(genre) {
-    setSelected((prev) =>
-      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
-    );
-  }
+  const toggle = (g) => setSelected((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
 
-  async function handleContinue() {
+  async function handleContinue(e) {
+    e.preventDefault();
     setSubmitting(true);
     try {
-      await updateMe({ favorite_genres: selected.join(",") });
-      await refreshUser();
-    } finally {
+      setUser(await api.updateMe({ favorite_genres: selected.join(","), ...(name.trim() ? { display_name: name.trim() } : {}) }));
+      navigate("/", { replace: true });
+    } catch (err) {
+      showToast(err.message, "error");
       setSubmitting(false);
-      navigate("/");
     }
   }
 
   return (
-    <div className="authScreen">
-      <div className="authCard">
-        <h1 className="authTitle">What do you enjoy?</h1>
-        <p className="authSubtitle">
-          Pick a few genres so we can suggest something good right away.
-        </p>
-
+    <AuthShell>
+      <form className="authCard authCard--wide" onSubmit={handleContinue}>
+        <span className="eyebrow">Step 1 of 1</span>
+        <h1 className="authTitle">What do you love watching?</h1>
+        <p className="authSub">Pick a few genres so your first recommendations land well.</p>
+        <label className="field">
+          <span>What should friends call you? (optional)</span>
+          <input className="input" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Display name" />
+        </label>
         <div className="genreChips">
-          {GENRES.map((genre) => (
-            <button
-              key={genre}
-              type="button"
-              className={`genreChip${selected.includes(genre) ? " genreChip--selected" : ""}`}
-              onClick={() => toggleGenre(genre)}
-            >
-              {genre}
+          {GENRES.map((g) => (
+            <button type="button" key={g} className={`genreChip${selected.includes(g) ? " is-selected" : ""}`} onClick={() => toggle(g)} aria-pressed={selected.includes(g)}>
+              {g}
             </button>
           ))}
         </div>
-
-        <button
-          className="authSubmitBtn"
-          style={{ marginTop: 24 }}
-          disabled={selected.length === 0 || submitting}
-          onClick={handleContinue}
-        >
-          {submitting ? "Saving…" : "Continue"}
+        <button className="btn btn--primary btn--block btn--lg" disabled={selected.length === 0 || submitting}>
+          {submitting ? "Saving…" : selected.length ? `Continue with ${selected.length} genre${selected.length > 1 ? "s" : ""}` : "Pick at least one"}
         </button>
-
         <p className="authSwitch">
-          <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
+          <button type="button" className="linkBtn" onClick={() => navigate("/", { replace: true })}>
             Skip for now
-          </a>
+          </button>
         </p>
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   );
 }
 

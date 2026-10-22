@@ -1,240 +1,106 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import "./SearchPage.css";
-
-import MovieCard from "../components/MovieCard";
+import { useSearchParams } from "react-router-dom";
+import PosterCard from "../components/PosterCard";
 import SearchBox from "../components/SearchBox";
-import { apiFetch } from "../api";
-import { useToast } from "../context/ToastContext";
+import { GridSkeleton } from "../components/Skeleton";
+import { api } from "../api";
+import { titleKey } from "../lib/format";
+
+const resultCache = new Map();
+
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "movie", label: "Films" },
+  { id: "series", label: "Series" },
+];
 
 function SearchPage() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { showToast } = useToast();
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const [res, setRes] = useState({ key: null, data: null, error: null });
+  const [filter, setFilter] = useState("all");
 
-  const initialQuery = searchParams.get("q") || "";
-
-  const [query, setQuery] = useState(initialQuery);
-  const [searchResults, setSearchResults] = useState([]);
-  const [hasSearched, setHasSearched] = useState(false);
-
-  const [watchLaterMovieId, setWatchLaterMovieId] = useState(null);
-  const [newWatchComment, setNewWatchComment] = useState("");
-
-  const [ratingMovieId, setRatingMovieId] = useState(null);
-  const [newRating, setNewRating] = useState("");
-  const [newComment, setNewComment] = useState("");
-
-  // Maps imdb_id -> "watched" | "watchlist", so search results can show
-  // their existing status without the user having to click first.
-  const [existingStatus, setExistingStatus] = useState({});
-
-  async function loadExistingStatus() {
-    const [watchedData, watchlistData] = await Promise.all([
-      apiFetch("/movies"),
-      apiFetch("/watchlist"),
-    ]);
-
-    const statusMap = {};
-    for (const m of watchedData.movies || []) statusMap[m.imdb_id] = "watched";
-    for (const m of watchlistData.movies || []) statusMap[m.imdb_id] = "watchlist";
-    setExistingStatus(statusMap);
-  }
-
-  async function searchMovies(searchText = query) {
-    if (!searchText.trim()) return;
-
-    const data = await apiFetch(
-      `/search?query=${encodeURIComponent(searchText.trim())}`
-    );
-
-    setHasSearched(true);
-
-    if (!data || !Array.isArray(data.movies)) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearchResults(data.movies);
-  }
+  const key = q.trim().toLowerCase();
+  const cached = key ? resultCache.get(key) : null;
+  const fresh = cached || (res.key === key ? res.data : null);
+  const error = !fresh && res.key === key ? res.error : null;
+  const loading = !!key && !fresh && !error;
+  // While a new query loads, keep showing the previous results (dimmed).
+  const state = { data: fresh || (loading ? res.data : null), loading, error };
 
   useEffect(() => {
-    loadExistingStatus();
-    if (initialQuery.trim()) {
-      searchMovies(initialQuery);
-    }
-  }, [initialQuery]);
-
-  async function saveMovie(movie) {
-    const saveData = await apiFetch("/select", { method: "POST", body: movie });
-    const movieId = saveData.movie_id;
-
-    await apiFetch(`/movies/${movieId}`, {
-      method: "PATCH",
-      body: {
-        my_rating: newRating === "" ? null : parseFloat(newRating),
-        my_comment: newComment,
-      },
-    });
-
-    setRatingMovieId(null);
-    setNewRating("");
-    setNewComment("");
-    loadExistingStatus();
-
-    showToast("Movie saved with rating!", "success");
-  }
-
-  async function saveWatchLater(movie) {
-    await apiFetch("/watchlist", { method: "POST", body: movie });
-
-    const data = await apiFetch("/watchlist");
-    const savedMovie = data.movies.find(
-      (m) => m.imdb_id === movie.imdb_id
-    );
-
-    if (savedMovie) {
-      await apiFetch(`/watchlist/${savedMovie.id}`, {
-        method: "PATCH",
-        body: { watch_comment: newWatchComment },
+    if (!key || resultCache.has(key)) return;
+    const ctrl = new AbortController();
+    api
+      .search(key, ctrl.signal)
+      .then((data) => {
+        resultCache.set(key, data);
+        setRes({ key, data, error: null });
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") setRes({ key, data: null, error: err.message });
       });
-    }
+    return () => ctrl.abort();
+  }, [key]);
 
-    setWatchLaterMovieId(null);
-    setNewWatchComment("");
-    loadExistingStatus();
-
-    showToast("Added to watch later!", "success");
-  }
+  const results = (state.data?.results || []).filter((r) => filter === "all" || r.media_type === filter);
+  const people = state.data?.people || [];
 
   return (
-    <div className="app">
-      <button className="homeBtn" onClick={() => navigate("/")}>
-        Home
-      </button>
+    <div className="page">
+      <div className="searchHero">
+        <SearchBox initial={q} autoFocus={!q} onSearch={(text) => setParams({ q: text })} />
+        {people.length > 0 && (
+          <div className="peopleRow">
+            {people.map((p) => (
+              <button key={p.id} className="personChip" onClick={() => setParams({ q: p.name })}>
+                {p.image ? <img src={p.image} alt="" /> : <span className="personChipPh" />}
+                <span>
+                  <strong>{p.name}</strong>
+                  <small>{p.department === "Directing" ? "Director" : p.department || "Person"}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <h1 id="searchResults">Search Results</h1>
-
-      <SearchBox
-        value={query}
-        onChange={setQuery}
-        onSubmit={(text) => searchMovies(text)}
-        placeholder="Search for a movie..."
-      />
-
-      {hasSearched && searchResults.length === 0 && (
-        <p className="emptyState">
-          No movies found for "{query}". Try a different title, an actor or
-          director's name, or a genre like "comedy".
-        </p>
+      {q && (
+        <div className="toolbar">
+          <h1 className="toolbarTitle">
+            {state.loading ? "Searching…" : `Results for “${q}”`}
+            {!state.loading && state.data && <span className="muted"> · {results.length}</span>}
+          </h1>
+          <div className="segmented">
+            {FILTERS.map((f) => (
+              <button key={f.id} className={filter === f.id ? "is-active" : ""} onClick={() => setFilter(f.id)}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
-      <div className="searchResultsGrid">
-        {searchResults.map((movie) => {
-          const status = existingStatus[movie.imdb_id];
-
-          return (
-            <MovieCard key={movie.imdb_id} movie={movie}>
-              {status === "watched" && (
-                <p className="statusPill statusPill--watched">Already Watched</p>
-              )}
-
-              {status !== "watched" && (
-                <>
-                  {status === "watchlist" && (
-                    <p className="statusPill statusPill--watchlist">In Watch Later</p>
-                  )}
-
-                  <div className="buttonRow">
-                    <button
-                      className="watchedBtn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRatingMovieId(movie.imdb_id);
-                        setNewRating("");
-                        setNewComment("");
-                      }}
-                    >
-                      Watched
-                    </button>
-
-                    {status !== "watchlist" && (
-                      <button
-                        className="watchLaterBtn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setWatchLaterMovieId(movie.imdb_id);
-                          setNewWatchComment("");
-                        }}
-                      >
-                        Watch Later
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {ratingMovieId === movie.imdb_id && (
-                <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    value={newRating}
-                    onChange={(e) => setNewRating(e.target.value)}
-                    placeholder="My rating"
-                  />
-
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="My thoughts"
-                  />
-
-                  <div className="buttonRow">
-                    <button
-                      className="watchedBtn"
-                      onClick={() => saveMovie(movie)}
-                    >
-                      Save
-                    </button>
-
-                    <button
-                      className="cancelBtn"
-                      onClick={() => setRatingMovieId(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {watchLaterMovieId === movie.imdb_id && (
-                <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
-                  <textarea
-                    value={newWatchComment}
-                    onChange={(e) => setNewWatchComment(e.target.value)}
-                    placeholder="Why do you wanna watch this?"
-                  />
-
-                  <div className="buttonRow">
-                    <button
-                      className="watchLaterBtn"
-                      onClick={() => saveWatchLater(movie)}
-                    >
-                      Save
-                    </button>
-
-                    <button
-                      className="cancelBtn"
-                      onClick={() => setWatchLaterMovieId(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </MovieCard>
-          );
-        })}
-      </div>
+      {!q ? (
+        <div className="emptyCard emptyCard--tall">
+          <h2>Find anything</h2>
+          <p className="muted">Try a title (“spiderman”), a person (“greta gerwig”), or a genre (“comedy”).</p>
+        </div>
+      ) : state.loading && !state.data ? (
+        <GridSkeleton count={18} />
+      ) : state.error ? (
+        <div className="emptyCard">{state.error}</div>
+      ) : results.length === 0 ? (
+        <div className="emptyCard">
+          Nothing found for “{q}”. Try a different spelling, an actor or director's name, or a genre like “thriller”.
+        </div>
+      ) : (
+        <div className={`posterGrid${state.loading ? " is-stale" : ""}`}>
+          {results.map((m) => (
+            <PosterCard key={titleKey(m)} title={m} reason={m.reason && !m.reason.endsWith("pick") ? m.reason : null} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

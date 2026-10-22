@@ -1,622 +1,237 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import "./HomePage.css";
-import MovieCard from "../components/MovieCard";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import Icon from "../components/Icon";
 import Avatar from "../components/Avatar";
-import SearchBox from "../components/SearchBox";
-import { apiFetch } from "../api";
+import PosterCard from "../components/PosterCard";
+import Row from "../components/Row";
+import { api } from "../api";
+import { useCached } from "../lib/cache";
+import { posterProps } from "../lib/images";
+import { displayName, firstName, greeting, timeAgo } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
-import { useToast } from "../context/ToastContext";
-import { useConfirm } from "../context/ConfirmContext";
+import { useLibrary } from "../context/LibraryContext";
+import { useTitleModal } from "../context/TitleModalContext";
 
-const REC_PAGE_SIZE = 30;
-
-function ratingValue(movie) {
-  if (movie.my_rating !== null && movie.my_rating !== undefined) return movie.my_rating;
-  const parsed = parseFloat(movie.imdb_rating);
-  return isNaN(parsed) ? -Infinity : parsed;
-}
-
-function sortByRating(movies) {
-  return [...movies].sort((a, b) => ratingValue(b) - ratingValue(a));
-}
-
-function splitByType(movies) {
-  return {
-    movies: movies.filter((m) => m.type !== "series"),
-    shows: movies.filter((m) => m.type === "series"),
-  };
-}
-
-function SeeAllModal({ title, movies, onClose, renderCard, footer }) {
+function Stats({ watched, watchlist }) {
   return (
-    <div className="seeAllOverlay" onClick={onClose}>
-      <div className="seeAllModal" onClick={(e) => e.stopPropagation()}>
-        <div className="seeAllHeader">
-          <h2>{title}</h2>
-          <button className="seeAllCloseBtn" onClick={onClose}>✕</button>
-        </div>
-        <div className="seeAllGrid">
-          {movies.map((movie) => renderCard(movie))}
-        </div>
-        {footer}
-      </div>
-    </div>
+    <p className="statLine">
+      <Link to="/watched">
+        <strong>{watched.length}</strong> watched
+      </Link>
+      <Link to="/watchlist">
+        <strong>{watchlist.length}</strong> on Watch Later
+      </Link>
+    </p>
   );
 }
 
-function TypeRow({ label, movies, renderCard }) {
-  if (movies.length === 0) return null;
+// Reminders whose release date has arrived.
+function OutNow({ reminders }) {
+  const { dismissReminders } = useLibrary();
+  const { openTitle } = useTitleModal();
+  if (!reminders.length) return null;
   return (
-    <div className="typeRow">
-      <h3 className="typeRowLabel">{label}</h3>
-      <div className="movieScrollRow">
-        {movies.map((movie) => renderCard(movie))}
+    <section className="alertStrip">
+      <Icon name="bell" size={18} className="text-accent" />
+      <div className="alertBody">
+        <strong>Out now:</strong>{" "}
+        {reminders.map((r, i) => (
+          <span key={r.id}>
+            {i > 0 && ", "}
+            <button className="linkBtn" onClick={() => openTitle(r)}>
+              {r.title}
+            </button>
+          </span>
+        ))}
       </div>
-    </div>
+      <button className="btn btn--ghost btn--sm" onClick={() => dismissReminders(reminders)}>
+        Got it
+      </button>
+    </section>
+  );
+}
+
+function QuizChallenges({ invites }) {
+  const { dismissQuizInvite } = useLibrary();
+  if (!invites.length) return null;
+  return (
+    <section className="alertStrip">
+      <Icon name="trophy" size={18} className="text-accent" />
+      <div className="alertBody">
+        {invites.slice(0, 3).map((inv) => (
+          <p key={inv.id}>
+            <strong>{inv.sender_display_name || inv.sender_username}</strong> challenged you to a <strong>{inv.title}</strong> quiz.{" "}
+            <Link className="linkBtn" to={`/quiz/${inv.quiz_id}`}>
+              Play
+            </Link>{" "}
+            ·{" "}
+            <button className="linkBtn linkBtn--muted" onClick={() => dismissQuizInvite(inv)}>
+              Not now
+            </button>
+          </p>
+        ))}
+        {invites.length > 3 && (
+          <Link className="linkBtn" to="/quizzes">
+            +{invites.length - 3} more challenges
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SharedWithYou({ inbox }) {
+  const { acceptShare, dismissShare } = useLibrary();
+  const { openTitle } = useTitleModal();
+  if (!inbox.length) return null;
+  return (
+    <section className="row">
+      <header className="rowHead">
+        <div>
+          <h2 className="sectionTitle">
+            Shared with you <span className="countPill">{inbox.length}</span>
+          </h2>
+          <p className="sectionHint">Friends think you'll like these</p>
+        </div>
+      </header>
+      <div className="shareTrack">
+        {inbox.map((s) => (
+          <article key={s.id} className="shareCard">
+            <button className="shareCardPoster" onClick={() => openTitle(s)} aria-label={`Open ${s.title}`}>
+              {s.poster ? <img {...posterProps(s.poster, 84)} alt="" loading="lazy" /> : <span className="posterFallback">{s.title}</span>}
+            </button>
+            <div className="shareCardBody">
+              <h3 className="shareCardTitle">{s.title}</h3>
+              <p className="shareFrom">
+                <Avatar name={s.sender_display_name || s.sender_username} size={20} />
+                {s.sender_display_name || s.sender_username}
+                <span className="muted"> · {timeAgo(s.created_at)}</span>
+              </p>
+              {s.comment && <p className="quote">“{s.comment}”</p>}
+              <div className="shareCardActions">
+                <button className="btn btn--primary btn--sm" onClick={() => acceptShare(s)}>
+                  <Icon name="bookmark" size={14} /> Watch later
+                </button>
+                <button className="btn btn--ghost btn--sm" onClick={() => dismissShare(s)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WelcomeCard({ name }) {
+  return (
+    <section className="welcomeCard">
+      <div>
+        <h2 className="welcomeTitle">Welcome to Deja View, {name}.</h2>
+        <p className="muted">
+          Log a few things you've watched — rate them and your recommendations sharpen instantly. Everything you save stays
+          right here, with your notes on why you loved it.
+        </p>
+      </div>
+      <div className="welcomeActions">
+        <Link className="btn btn--primary" to="/search">
+          <Icon name="search" size={16} /> Find something you've seen
+        </Link>
+        <Link className="btn btn--soft" to="/discover">
+          <Icon name="compass" size={16} /> Browse by mood
+        </Link>
+      </div>
+    </section>
   );
 }
 
 function HomePage() {
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const { showToast } = useToast();
-  const confirm = useConfirm();
+  const { user } = useAuth();
+  const lib = useLibrary();
+  const recs = useCached("recs:home", () => api.recommendations({ limit: 24 }), { maxAge: 10 * 60 * 1000 });
 
-  const [savedMovies, setSavedMovies] = useState([]);
-  const [watchlistMovies, setWatchlistMovies] = useState([]);
-  const [recommendedMovies, setRecommendedMovies] = useState([]);
-  const [recsPersonalized, setRecsPersonalized] = useState(true);
-  const [loadingMoreRecs, setLoadingMoreRecs] = useState(false);
+  const recMovies = (recs.data?.movies || []).filter((m) => !lib.find(m));
 
-  const [editingMovieId, setEditingMovieId] = useState(null);
-  const [editRating, setEditRating] = useState("");
-  const [editComment, setEditComment] = useState("");
+  const recentlyWatched = useMemo(
+    () =>
+      [...lib.watched].sort((a, b) => (b.watched_at || b.added_at || "").localeCompare(a.watched_at || a.added_at || "")).slice(0, 20),
+    [lib.watched]
+  );
 
-  const [editingWatchId, setEditingWatchId] = useState(null);
-  const [editWatchComment, setEditWatchComment] = useState("");
-
-  const [query, setQuery] = useState("");
-
-  // See All modal state
-  const [seeAllSection, setSeeAllSection] = useState(null); // "watched" | "watchlist" | "recommendations"
-
-  const recRowRef = useRef(null);
-  const recPausedRef = useRef(false);
-
-  // Friends + sharing
-  const [friends, setFriends] = useState([]);
-  const [inboxShares, setInboxShares] = useState([]);
-  const [sharingMovieId, setSharingMovieId] = useState(null);
-  const [shareFriendId, setShareFriendId] = useState("");
-  const [shareComment, setShareComment] = useState("");
-
-  async function loadSavedMovies() {
-    const data = await apiFetch("/movies");
-    setSavedMovies(data.movies || []);
-  }
-
-  async function loadWatchlistMovies() {
-    const data = await apiFetch("/watchlist");
-    setWatchlistMovies(data.movies || []);
-  }
-
-  async function loadRecommendations() {
-    const data = await apiFetch(`/recommendations?limit=${REC_PAGE_SIZE}`);
-    setRecommendedMovies(data.movies || []);
-    setRecsPersonalized(data.personalized ?? true);
-  }
-
-  async function getMoreRecommendations() {
-    setLoadingMoreRecs(true);
-    try {
-      const exclude = recommendedMovies.map((m) => m.imdb_id).join(",");
-      const data = await apiFetch(
-        `/recommendations?limit=${REC_PAGE_SIZE}&exclude=${encodeURIComponent(exclude)}`
-      );
-      const newMovies = data.movies || [];
-      setRecommendedMovies((prev) => [...prev, ...newMovies]);
-      if (newMovies.length === 0) {
-        showToast("No more new recommendations to show right now.", "info");
-      }
-    } finally {
-      setLoadingMoreRecs(false);
-    }
-  }
-
-  async function loadFriends() {
-    const data = await apiFetch("/friends");
-    setFriends(data.friends || []);
-  }
-
-  async function loadInbox() {
-    const data = await apiFetch("/shares/inbox");
-    setInboxShares(data.shares || []);
-  }
-
-  useEffect(() => {
-    loadSavedMovies();
-    loadWatchlistMovies();
-    loadRecommendations();
-    loadFriends();
-    loadInbox();
-  }, []);
-
-  useEffect(() => {
-    const row = recRowRef.current;
-    if (!row) return;
-
-    const speed = 0.5; // px per frame
-    let frameId;
-
-    function step() {
-      if (!recPausedRef.current && row.scrollWidth > row.clientWidth) {
-        if (row.scrollLeft + row.clientWidth >= row.scrollWidth - 1) {
-          row.scrollLeft = 0;
-        } else {
-          row.scrollLeft += speed;
-        }
-      }
-      frameId = requestAnimationFrame(step);
-    }
-
-    frameId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frameId);
-  }, [recommendedMovies]);
-
-  async function saveMovie(movie) {
-    await apiFetch("/select", { method: "POST", body: movie });
-    loadSavedMovies();
-    loadRecommendations();
-  }
-
-  async function saveWatchLater(movie) {
-    try {
-      await apiFetch("/watchlist", { method: "POST", body: movie });
-    } catch {
-      showToast("Failed to add to watch later", "error");
-      return;
-    }
-    await loadWatchlistMovies();
-    loadRecommendations();
-  }
-
-  async function deleteMovie(id) {
-    if (!(await confirm("Are you sure you want to delete this movie?"))) return;
-    await apiFetch(`/movies/${id}`, { method: "DELETE" });
-    loadSavedMovies();
-  }
-
-  function startEdit(movie) {
-    setEditingMovieId(movie.id);
-    setEditRating(movie.my_rating || "");
-    setEditComment(movie.my_comment || "");
-  }
-
-  async function updateMovie(movieId, payload) {
-    return apiFetch(`/movies/${movieId}`, { method: "PATCH", body: payload });
-  }
-
-  async function saveEdit(movieId) {
-    const payload = {
-      my_rating: editRating === "" ? null : parseFloat(editRating),
-      my_comment: editComment,
-    };
-    const updatedMovie = await updateMovie(movieId, payload);
-    setSavedMovies((prev) =>
-      prev.map((movie) =>
-        movie.id === movieId
-          ? { ...movie, my_rating: updatedMovie.my_rating, my_comment: updatedMovie.my_comment }
-          : movie
-      )
-    );
-    setEditingMovieId(null);
-    loadRecommendations();
-  }
-
-  function startWatchEdit(movie) {
-    setEditingWatchId(movie.id);
-    setEditWatchComment(movie.watch_comment || "");
-  }
-
-  async function saveWatchEdit(id) {
-    await apiFetch(`/watchlist/${id}`, { method: "PATCH", body: { watch_comment: editWatchComment } });
-    setWatchlistMovies((prev) =>
-      prev.map((movie) =>
-        movie.id === id ? { ...movie, watch_comment: editWatchComment } : movie
-      )
-    );
-    setEditingWatchId(null);
-  }
-
-  async function moveToWatched(movie) {
-    await apiFetch(`/watchlist/${movie.id}/watched`, { method: "PATCH" });
-    loadSavedMovies();
-    loadWatchlistMovies();
-  }
-
-  async function deleteWatchMovie(id) {
-    if (!(await confirm("Remove from Watch Later?"))) return;
-    await apiFetch(`/watchlist/${id}`, { method: "DELETE" });
-    setWatchlistMovies((prev) => prev.filter((m) => m.id !== id));
-  }
-
-  function startShare(movie) {
-    setSharingMovieId(movie.id);
-    setShareFriendId("");
-    setShareComment("");
-  }
-
-  async function shareMovie(movie) {
-    if (!shareFriendId) return;
-    try {
-      await apiFetch("/shares", {
-        method: "POST",
-        body: {
-          movie_id: movie.id,
-          friend_user_id: parseInt(shareFriendId, 10),
-          comment: shareComment,
-        },
-      });
-      setSharingMovieId(null);
-    } catch (err) {
-      showToast(err.message || "Failed to share movie", "error");
-    }
-  }
-
-  async function addSharedMovie(share) {
-    try {
-      await apiFetch(`/shares/${share.id}/add`, { method: "POST" });
-    } catch (err) {
-      showToast(err.message || "Failed to add this movie to your Watch Later list", "error");
-      return;
-    }
-    setInboxShares((prev) => prev.filter((s) => s.id !== share.id));
-    loadWatchlistMovies();
-    loadRecommendations();
-  }
-
-  async function dismissSharedMovie(share) {
-    await apiFetch(`/shares/${share.id}/dismiss`, { method: "POST" });
-    setInboxShares((prev) => prev.filter((s) => s.id !== share.id));
-  }
-
-  // ---------- Card renderers ----------
-
-  function renderShareBox(movie) {
-    if (sharingMovieId !== movie.id) return null;
-    return (
-      <div className="quickRateBox" onClick={(e) => e.stopPropagation()}>
-        {friends.length === 0 ? (
-          <p className="emptyState">
-            Add a friend first — <a href="/friends">go to Friends</a>.
-          </p>
-        ) : (
-          <>
-            <select value={shareFriendId} onChange={(e) => setShareFriendId(e.target.value)}>
-              <option value="">Choose a friend…</option>
-              {friends.map((f) => (
-                <option key={f.user_id} value={f.user_id}>
-                  {f.display_name || f.username}
-                </option>
-              ))}
-            </select>
-            <textarea
-              value={shareComment}
-              onChange={(e) => setShareComment(e.target.value)}
-              placeholder="Add a comment…"
-            />
-            <div className="buttonRow">
-              <button className="saveBtn" disabled={!shareFriendId} onClick={() => shareMovie(movie)}>
-                Share
-              </button>
-              <button className="cancelBtn" onClick={() => setSharingMovieId(null)}>Cancel</button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  function renderWatchedCard(movie) {
-    return (
-      <MovieCard key={movie.id} movie={movie}>
-        <p className="imdb-line">IMDb: {movie.imdb_rating || "N/A"}</p>
-        {editingMovieId === movie.id ? (
-          <div onClick={(e) => e.stopPropagation()}>
-            <input
-              value={editRating || ""}
-              onChange={(e) => setEditRating(e.target.value)}
-              placeholder="My rating (e.g. 9)"
-              type="number"
-              min="1"
-              max="10"
-              step="0.1"
-            />
-            <textarea
-              value={editComment || ""}
-              onChange={(e) => setEditComment(e.target.value)}
-              placeholder="My thoughts…"
-            />
-            <div className="buttonRow">
-              <button className="saveBtn" onClick={() => saveEdit(movie.id)}>Save</button>
-              <button className="cancelBtn" onClick={() => setEditingMovieId(null)}>Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {movie.my_rating && (
-              <p className="my-rating-badge">My Rating: {movie.my_rating}/10</p>
-            )}
-            {movie.my_comment && (
-              <p className="movie-thoughts">"{movie.my_comment}"</p>
-            )}
-            <div className="buttonRow">
-              <button className="editBtn" onClick={(e) => { e.stopPropagation(); startEdit(movie); }}>
-                Rate
-              </button>
-              <button className="shareBtn" onClick={(e) => { e.stopPropagation(); startShare(movie); }}>
-                Share
-              </button>
-              <button className="deleteBtn" onClick={(e) => { e.stopPropagation(); deleteMovie(movie.id); }}>
-                ✕
-              </button>
-            </div>
-          </>
-        )}
-        {renderShareBox(movie)}
-      </MovieCard>
-    );
-  }
-
-  function renderWatchlistCard(movie) {
-    return (
-      <MovieCard
-        key={movie.id}
-        movie={movie}
-        cornerAction={{
-          title: "Remove from Watch Later",
-          onClick: () => deleteWatchMovie(movie.id),
-        }}
-      >
-        <p className="imdb-line">IMDb: {movie.imdb_rating || "N/A"}</p>
-        {editingWatchId === movie.id ? (
-          <div onClick={(e) => e.stopPropagation()}>
-            <textarea
-              value={editWatchComment || ""}
-              onChange={(e) => setEditWatchComment(e.target.value)}
-              placeholder="Why do you want to watch this?"
-            />
-            <div className="buttonRow">
-              <button className="saveBtn" onClick={() => saveWatchEdit(movie.id)}>Save</button>
-              <button className="cancelBtn" onClick={() => setEditingWatchId(null)}>Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {movie.watch_comment && (
-              <p className="movie-thoughts">"{movie.watch_comment}"</p>
-            )}
-            <div className="watchButtons">
-              <button
-                className="editBtn"
-                title="Add a note"
-                onClick={(e) => { e.stopPropagation(); startWatchEdit(movie); }}
-              >
-                Note
-              </button>
-              <button
-                className="shareBtn"
-                title="Share with a friend"
-                onClick={(e) => { e.stopPropagation(); startShare(movie); }}
-              >
-                Share
-              </button>
-              <button
-                className="watchBtn"
-                title="Mark as watched"
-                onClick={(e) => { e.stopPropagation(); moveToWatched(movie); }}
-              >
-                Watched
-              </button>
-            </div>
-          </>
-        )}
-        {renderShareBox(movie)}
-      </MovieCard>
-    );
-  }
-
-  function renderRecommendationCard(movie) {
-    return (
-      <MovieCard key={movie.imdb_id} movie={movie}>
-        <p className="imdb-line">IMDb: {movie.imdb_rating || "N/A"}</p>
-        <div className="buttonRow">
-          <button className="watchedBtn" onClick={(e) => { e.stopPropagation(); saveMovie(movie); }}>
-            Watched
-          </button>
-          <button className="watchLaterBtn" onClick={(e) => { e.stopPropagation(); saveWatchLater(movie); }}>
-            Watch Later
-          </button>
-        </div>
-      </MovieCard>
-    );
-  }
-
-  const { movies: watchedMovies, shows: watchedShows } = splitByType(sortByRating(savedMovies));
-  const { movies: watchlistMoviesOnly, shows: watchlistShows } = splitByType(watchlistMovies);
+  const name = firstName(user);
+  const isNew = lib.loaded && lib.library.length === 0;
 
   return (
-    <div className="app">
-      {/* Header */}
-      <header className="appHeader">
-        <div className="headerLeft">
-          <h1 className="appTitle">Deja View</h1>
-          <p className="subtitle">Never forget why you loved it.</p>
-        </div>
-        <SearchBox
-          value={query}
-          onChange={setQuery}
-          onSubmit={(text) => {
-            if (text.trim()) navigate(`/search?q=${encodeURIComponent(text.trim())}`);
-          }}
-          placeholder="Search for a movie…"
-        />
-        <div className="headerRight">
-          <div className="userChip" onClick={() => navigate("/profile")}>
-            <Avatar name={user?.display_name || user?.username || "?"} size={32} />
-            <span>{user?.display_name || user?.username}</span>
-          </div>
-          <button className="seeAllBtn" onClick={() => navigate("/friends")}>Friends</button>
-          <button
-            className="seeAllBtn"
-            onClick={async () => {
-              if (await confirm("Are you sure you want to log out?")) logout();
-            }}
-          >
-            Log out
-          </button>
+    <div className="page page--home">
+      <header className="pageHead">
+        <div>
+          <h1 className="pageTitle">
+            {greeting()}, {user ? name : "…"}
+          </h1>
+          {lib.loaded && !isNew && <Stats watched={lib.watched} watchlist={lib.watchlist} />}
         </div>
       </header>
 
-      {/* ===== Shared With You ===== */}
-      {inboxShares.length > 0 && (
-        <section className="section">
-          <div className="sectionHeader">
-            <h2>Shared With You</h2>
-          </div>
-          <div className="shareInboxList">
-            {inboxShares.map((share) => (
-              <div className="shareInboxCard" key={share.id}>
-                <img src={share.poster} alt={share.title} />
-                <div className="shareInboxInfo">
-                  <h3>{share.title}</h3>
-                  <div className="imdb-line">
-                    <Avatar name={share.sender_display_name || share.sender_username} size={20} />
-                    {" "}from {share.sender_display_name || share.sender_username}
-                  </div>
-                  {share.comment && <p className="movie-thoughts">"{share.comment}"</p>}
-                </div>
-                <div className="buttonRow">
-                  <button className="watchLaterBtn" onClick={() => addSharedMovie(share)}>
-                    Add to Watch Later
-                  </button>
-                  <button className="cancelBtn" onClick={() => dismissSharedMovie(share)}>
-                    Dismiss
-                  </button>
-                </div>
-              </div>
+      {isNew && <WelcomeCard name={name} />}
+
+      <OutNow reminders={lib.dueReminders} />
+      <QuizChallenges invites={lib.quizInvites} />
+      <SharedWithYou inbox={lib.inbox} />
+
+      <div className="homeMain">
+        <Row
+          title="Picked for you"
+          hint={
+            recs.data
+              ? recs.data.personalized
+                ? "From what you've watched and rated"
+                : "Popular picks to get you started — rate a few to personalise"
+              : null
+          }
+          seeAllTo="/for-you"
+          loading={recs.loading && !recs.data}
+          empty={recs.error ? "Couldn't load recommendations right now." : recMovies.length === 0 ? "You've seen everything we'd suggest — impressive! Check Discover." : null}
+          autoScroll
+          accent="rose"
+        >
+          {recMovies.map((m) => (
+            <PosterCard key={`${m.media_type}:${m.tmdb_id}`} title={m} reason={m.reason} badge={m.badge} />
+          ))}
+        </Row>
+
+        {lib.watchlist.length > 0 && (
+          <Row title="Up next" hint="From your Watch Later list" seeAllTo="/watchlist">
+            {lib.watchlist.slice(0, 20).map((m) => (
+              <PosterCard key={m.id} title={m} meta={m.watch_comment ? `“${m.watch_comment}”` : undefined} />
             ))}
+          </Row>
+        )}
+
+        {recentlyWatched.length > 0 && (
+          <Row title="Recently watched" seeAllTo="/watched">
+            {recentlyWatched.map((m) => (
+              <PosterCard key={m.id} title={m} />
+            ))}
+          </Row>
+        )}
+      </div>
+
+      {lib.friends.length === 0 && lib.loaded && (
+        <section className="nudge">
+          <Icon name="users" size={20} />
+          <div>
+            <strong>Movies are better with friends.</strong>
+            <p className="muted small">Share your friend code and swap recommendations with people you trust.</p>
           </div>
+          <Link to="/friends" className="btn btn--soft btn--sm">
+            Add friends
+          </Link>
         </section>
       )}
-
-      {/* ===== Recommendations ===== */}
-      <section className="section">
-        <div className="sectionHeader">
-          <h2>Recommended For You</h2>
-          <div className="sectionHeaderRight">
-            <span className="sectionHint">
-              {recsPersonalized ? "Based on movies you rated 8+" : "Popular picks to get you started"}
-            </span>
-            {recommendedMovies.length > 0 && (
-              <button className="seeAllBtn" onClick={() => setSeeAllSection("recommendations")}>
-                See All ({recommendedMovies.length})
-              </button>
-            )}
-          </div>
-        </div>
-
-        {recommendedMovies.length === 0 ? (
-          <p className="emptyState">Rate a few movies 8 or above to get personalised recommendations.</p>
-        ) : (
-          <div
-            className="movieScrollRow"
-            ref={recRowRef}
-            onMouseEnter={() => { recPausedRef.current = true; }}
-            onMouseLeave={() => { recPausedRef.current = false; }}
-          >
-            {recommendedMovies.map((movie) => renderRecommendationCard(movie))}
-          </div>
-        )}
-      </section>
-
-      {/* ===== Watched ===== */}
-      <section className="section">
-        <div className="sectionHeader">
-          <h2>Watched</h2>
-          {savedMovies.length > 0 && (
-            <button className="seeAllBtn" onClick={() => setSeeAllSection("watched")}>
-              See All ({savedMovies.length})
-            </button>
-          )}
-        </div>
-
-        {savedMovies.length === 0 ? (
-          <p className="emptyState">No watched movies yet. Search and add some!</p>
-        ) : (
-          <>
-            <TypeRow label="Movies" movies={watchedMovies} renderCard={renderWatchedCard} />
-            <TypeRow label="Shows" movies={watchedShows} renderCard={renderWatchedCard} />
-          </>
-        )}
-      </section>
-
-      {/* ===== Watch Later ===== */}
-      <section className="section">
-        <div className="sectionHeader">
-          <h2>Watch Later</h2>
-          {watchlistMovies.length > 0 && (
-            <button className="seeAllBtn" onClick={() => setSeeAllSection("watchlist")}>
-              See All ({watchlistMovies.length})
-            </button>
-          )}
-        </div>
-
-        {watchlistMovies.length === 0 ? (
-          <p className="emptyState">Your watchlist is empty.</p>
-        ) : (
-          <>
-            <TypeRow label="Movies" movies={watchlistMoviesOnly} renderCard={renderWatchlistCard} />
-            <TypeRow label="Shows" movies={watchlistShows} renderCard={renderWatchlistCard} />
-          </>
-        )}
-      </section>
-
-      {/* ===== See All Modals ===== */}
-      {seeAllSection === "watched" && (
-        <SeeAllModal
-          title={`All Watched Movies (${savedMovies.length})`}
-          movies={sortByRating(savedMovies)}
-          onClose={() => setSeeAllSection(null)}
-          renderCard={renderWatchedCard}
-        />
-      )}
-
-      {seeAllSection === "watchlist" && (
-        <SeeAllModal
-          title={`Watch Later (${watchlistMovies.length})`}
-          movies={watchlistMovies}
-          onClose={() => setSeeAllSection(null)}
-          renderCard={renderWatchlistCard}
-        />
-      )}
-
-      {seeAllSection === "recommendations" && (
-        <SeeAllModal
-          title={`Recommended For You (${recommendedMovies.length})`}
-          movies={recommendedMovies}
-          onClose={() => setSeeAllSection(null)}
-          renderCard={renderRecommendationCard}
-          footer={
-            <div className="getMoreRow">
-              <button className="seeAllBtn" onClick={getMoreRecommendations} disabled={loadingMoreRecs}>
-                {loadingMoreRecs ? "Finding more…" : "Get More"}
-              </button>
-            </div>
-          }
-        />
-      )}
+      <p className="fineprint center">
+        Signed in as {displayName(user)} · Data from TMDB
+      </p>
     </div>
   );
 }

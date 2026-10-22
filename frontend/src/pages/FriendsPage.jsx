@@ -1,262 +1,297 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import "./FriendsPage.css";
+import { useCallback, useEffect, useState } from "react";
+import Icon from "../components/Icon";
 import Avatar from "../components/Avatar";
-import { apiFetch } from "../api";
+import { api } from "../api";
+import { displayName, formatFriendCode, timeAgo } from "../lib/format";
+import { posterProps } from "../lib/images";
+import { useAuth } from "../context/AuthContext";
+import { useLibrary } from "../context/LibraryContext";
 import { useToast } from "../context/ToastContext";
 import { useConfirm } from "../context/ConfirmContext";
+import { useTitleModal } from "../context/TitleModalContext";
 
-function formatFriendCode(code) {
-  if (!code) return "";
-  return `${code.slice(0, 4)}-${code.slice(4)}`;
+function PersonRow({ person, children, onClick }) {
+  return (
+    <div className={`personRow${onClick ? " personRow--clickable" : ""}`} onClick={onClick}>
+      <Avatar name={displayName(person)} size={40} />
+      <div className="personText">
+        <span className="personName">{displayName(person)}</span>
+        <span className="personSub">
+          @{person.username}
+          {person.friend_code && <span className="codeTag">{formatFriendCode(person.friend_code)}</span>}
+        </span>
+      </div>
+      <div className="personActions" onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function HistoryModal({ friend, onClose }) {
+  const { openTitle } = useTitleModal();
+  const [shares, setShares] = useState(null);
+
+  useEffect(() => {
+    api.shareHistory(friend.user_id).then((d) => setShares(d.shares)).catch(() => setShares([]));
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [friend, onClose]);
+
+  const name = displayName(friend);
+  return (
+    <div className="overlay overlay--center" onClick={onClose}>
+      <div className="sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <header className="sheetHead">
+          <div className="sheetHeadMain">
+            <Avatar name={name} size={36} />
+            <div>
+              <h2 className="sheetTitle">You & {name}</h2>
+              <p className="muted small">Everything you've shared with each other</p>
+            </div>
+          </div>
+          <button className="iconBtn" onClick={onClose} aria-label="Close">
+            <Icon name="x" />
+          </button>
+        </header>
+        {shares === null ? (
+          <div className="pad center muted">Loading…</div>
+        ) : shares.length === 0 ? (
+          <div className="pad center muted">No shares yet — open any movie and hit Share.</div>
+        ) : (
+          <ul className="historyList">
+            {shares.map((s) => (
+              <li key={s.id} className="historyItem">
+                <button className="historyPoster" onClick={() => openTitle(s)}>
+                  {s.poster ? <img {...posterProps(s.poster, 52)} alt="" loading="lazy" /> : <span className="posterFallback">{s.title}</span>}
+                </button>
+                <div className="historyBody">
+                  <h3>{s.title}</h3>
+                  <p className="muted small">
+                    {s.direction === "sent" ? `You → ${name}` : `${name} → You`} · {timeAgo(s.created_at)}
+                  </p>
+                  {s.comment && <p className="quote">“{s.comment}”</p>}
+                </div>
+                <span className={`statusPill statusPill--${s.status}`}>{s.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function FriendsPage() {
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const lib = useLibrary();
   const { showToast } = useToast();
   const confirm = useConfirm();
 
+  const [data, setData] = useState({ friends: lib.friends, incoming: [], outgoing: [] });
+  const [loaded, setLoaded] = useState(false);
+  const [code, setCode] = useState("");
   const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [incoming, setIncoming] = useState([]);
-  const [outgoing, setOutgoing] = useState([]);
-  const [friends, setFriends] = useState([]);
-  const [codeInput, setCodeInput] = useState("");
+  const [results, setResults] = useState(null);
   const [historyFriend, setHistoryFriend] = useState(null);
-  const [historyShares, setHistoryShares] = useState([]);
+  const [copied, setCopied] = useState(false);
 
-  async function loadIncoming() {
-    const data = await apiFetch("/friends/requests/incoming");
-    setIncoming(data.requests || []);
-  }
-
-  async function loadOutgoing() {
-    const data = await apiFetch("/friends/requests/outgoing");
-    setOutgoing(data.requests || []);
-  }
-
-  async function loadFriends() {
-    const data = await apiFetch("/friends");
-    setFriends(data.friends || []);
-  }
-
-  function loadAll() {
-    loadIncoming();
-    loadOutgoing();
-    loadFriends();
-  }
+  const closeHistory = useCallback(() => setHistoryFriend(null), []);
+  const { setSocial } = lib;
+  const load = useCallback(async () => {
+    try {
+      const d = await api.friends();
+      setData(d);
+      setSocial({ friends: d.friends, incoming: d.incoming.length });
+    } finally {
+      setLoaded(true);
+    }
+  }, [setSocial]);
 
   useEffect(() => {
-    loadAll();
-  }, []);
+    load();
+  }, [load]);
 
-  async function searchUsers() {
-    if (!query.trim()) return;
-    const data = await apiFetch(`/users/search?q=${encodeURIComponent(query.trim())}`);
-    setSearchResults(data.users || []);
-  }
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.searchUsers(q).then((d) => setResults(d.users)).catch(() => setResults([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  async function sendRequest(username) {
+  async function act(promise, success) {
     try {
-      await apiFetch("/friends/request", { method: "POST", body: { username } });
-      searchUsers();
-      loadOutgoing();
+      const res = await promise;
+      if (success) showToast(typeof success === "function" ? success(res) : success, "success");
+      await load();
+      if (query.trim().length >= 2) api.searchUsers(query.trim()).then((d) => setResults(d.users)).catch(() => {});
     } catch (err) {
-      showToast(err.message || "Failed to send request", "error");
+      showToast(err.message, "error");
     }
   }
 
-  async function sendRequestByCode() {
-    if (!codeInput.trim()) return;
+  async function addByCode(e) {
+    e.preventDefault();
+    if (!code.trim()) return;
+    await act(api.sendFriendRequest({ friend_code: code.trim() }), (r) => (r.message === "accepted" ? "You're now friends!" : "Friend request sent"));
+    setCode("");
+  }
+
+  async function copyCode() {
     try {
-      await apiFetch("/friends/request", { method: "POST", body: { friend_code: codeInput.trim() } });
-      setCodeInput("");
-      loadOutgoing();
-      showToast("Friend request sent!", "success");
-    } catch (err) {
-      showToast(err.message || "Failed to send request", "error");
+      await navigator.clipboard.writeText(formatFriendCode(user?.friend_code));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      showToast("Couldn't copy — select it manually", "error");
     }
-  }
-
-  async function acceptRequest(friendshipId) {
-    await apiFetch(`/friends/${friendshipId}/accept`, { method: "POST" });
-    loadAll();
-  }
-
-  async function declineRequest(friendshipId) {
-    await apiFetch(`/friends/${friendshipId}/decline`, { method: "POST" });
-    loadIncoming();
-  }
-
-  async function unfriend(friendshipId) {
-    if (!(await confirm("Remove this friend?"))) return;
-    await apiFetch(`/friends/${friendshipId}`, { method: "DELETE" });
-    loadFriends();
-  }
-
-  async function openHistory(friend) {
-    setHistoryFriend(friend);
-    const data = await apiFetch(`/shares/history/${friend.user_id}`);
-    setHistoryShares(data.shares || []);
-  }
-
-  function nameFor(person) {
-    return person.display_name || person.username;
   }
 
   return (
-    <div className="app">
-      <button className="homeBtn" onClick={() => navigate("/")}>
-        Home
-      </button>
-
-      <h1 id="searchResults">Friends</h1>
-
-      <section className="friendsSection">
-        <h2>Add by Friend Code</h2>
-        <div className="searchBox">
-          <input
-            value={codeInput}
-            onChange={(e) => setCodeInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendRequestByCode()}
-            placeholder="e.g. K3XQ-9F2M"
-          />
-          <button id="searchBtn" onClick={sendRequestByCode}>Add</button>
+    <div className="page">
+      <header className="pageHead">
+        <div>
+          <h1 className="pageTitle">Friends</h1>
         </div>
-      </section>
+      </header>
 
-      <section className="friendsSection">
-        <h2>Find Friends</h2>
-        <div className="searchBox">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && searchUsers()}
-            placeholder="Search by username…"
-          />
-          <button id="searchBtn" onClick={searchUsers}>Search</button>
-        </div>
-
-        <div className="friendsList">
-          {searchResults.map((u) => (
-            <div className="friendRow" key={u.id}>
-              <Avatar name={nameFor(u)} size={36} />
-              <span className="friendName">
-                {nameFor(u)}
-                <span className="friendCodeTag">{formatFriendCode(u.friend_code)}</span>
-              </span>
-              {u.friendship_status === "none" && (
-                <button className="saveBtn" onClick={() => sendRequest(u.username)}>Add Friend</button>
-              )}
-              {u.friendship_status === "pending_outgoing" && (
-                <button className="cancelBtn" disabled>Requested</button>
-              )}
-              {u.friendship_status === "pending_incoming" && (
-                <span className="statusPill">Sent you a request</span>
-              )}
-              {u.friendship_status === "friends" && (
-                <button className="cancelBtn" disabled>Friends</button>
-              )}
+      <div className="friendsGrid">
+        <div className="friendsCol">
+          <section className="panel codePanel">
+            <span className="eyebrow">Your friend code</span>
+            <div className="codeRow">
+              <span className="codeBig">{formatFriendCode(user?.friend_code) || "—"}</span>
+              <button className="btn btn--soft btn--sm" onClick={copyCode}>
+                <Icon name={copied ? "check" : "copy"} size={14} /> {copied ? "Copied" : "Copy"}
+              </button>
             </div>
-          ))}
-        </div>
-      </section>
+            <p className="muted small">Share it so friends can add you even if someone else has your name.</p>
+          </section>
 
-      <section className="friendsSection">
-        <h2>Incoming Requests</h2>
-        {incoming.length === 0 ? (
-          <p className="emptyState">No pending requests.</p>
-        ) : (
-          <div className="friendsList">
-            {incoming.map((r) => (
-              <div className="friendRow" key={r.friendship_id}>
-                <Avatar name={r.display_name || r.username} size={36} />
-                <span className="friendName">
-                  {r.display_name || r.username}
-                  <span className="friendCodeTag">{formatFriendCode(r.friend_code)}</span>
-                </span>
-                <button className="saveBtn" onClick={() => acceptRequest(r.friendship_id)}>Accept</button>
-                <button className="cancelBtn" onClick={() => declineRequest(r.friendship_id)}>Decline</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+          <section className="panel">
+            <h2 className="panelTitle">Add by code</h2>
+            <form className="inlineForm" onSubmit={addByCode}>
+              <input
+                className="input input--code"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="K3XQ-9F2M"
+                maxLength={9}
+                aria-label="Friend code"
+              />
+              <button className="btn btn--primary" disabled={!code.trim()}>
+                Add
+              </button>
+            </form>
+          </section>
 
-      <section className="friendsSection">
-        <h2>Outgoing Requests</h2>
-        {outgoing.length === 0 ? (
-          <p className="emptyState">No requests waiting on anyone.</p>
-        ) : (
-          <div className="friendsList">
-            {outgoing.map((r) => (
-              <div className="friendRow" key={r.friendship_id}>
-                <Avatar name={r.display_name || r.username} size={36} />
-                <span className="friendName">
-                  {r.display_name || r.username}
-                  <span className="friendCodeTag">{formatFriendCode(r.friend_code)}</span>
-                </span>
-                <span className="statusPill">Pending…</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="friendsSection">
-        <h2>Your Friends</h2>
-        {friends.length === 0 ? (
-          <p className="emptyState">No friends yet — search for someone above.</p>
-        ) : (
-          <div className="friendsList">
-            {friends.map((f) => (
-              <div className="friendRow" key={f.friendship_id}>
-                <Avatar name={f.display_name || f.username} size={36} />
-                <span className="friendName">
-                  {f.display_name || f.username}
-                  <span className="friendCodeTag">{formatFriendCode(f.friend_code)}</span>
-                </span>
-                <button className="cancelBtn" onClick={() => openHistory(f)}>History</button>
-                <button className="deleteBtn" onClick={() => unfriend(f.friendship_id)}>✕</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {historyFriend && (
-        <div className="seeAllOverlay" onClick={() => setHistoryFriend(null)}>
-          <div className="seeAllModal" onClick={(e) => e.stopPropagation()}>
-            <div className="seeAllHeader">
-              <h2>Movies shared with {historyFriend.display_name || historyFriend.username}</h2>
-              <button className="seeAllCloseBtn" onClick={() => setHistoryFriend(null)}>✕</button>
-            </div>
-            {historyShares.length === 0 ? (
-              <p className="emptyState">No shares yet between you two.</p>
-            ) : (
-              <div className="historyList">
-                {historyShares.map((s) => (
-                  <div className="historyRow" key={s.id}>
-                    <img src={s.poster} alt={s.title} />
-                    <div className="historyInfo">
-                      <h3>{s.title}</h3>
-                      <p className="historyMeta">
-                        {s.direction === "sent"
-                          ? `You → ${historyFriend.display_name || historyFriend.username}`
-                          : `${historyFriend.display_name || historyFriend.username} → You`}
-                        {" · "}
-                        {new Date(s.created_at).toLocaleDateString()}
-                      </p>
-                      {s.comment && <p className="movie-thoughts">"{s.comment}"</p>}
-                    </div>
-                    <span className={`statusPill historyStatus--${s.status}`}>{s.status}</span>
-                  </div>
+          <section className="panel">
+            <h2 className="panelTitle">Find people</h2>
+            <label className="filterInput">
+              <Icon name="search" size={15} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by username or name…" />
+            </label>
+            {results && (
+              <div className="personList">
+                {results.length === 0 && <p className="muted small pad-s">No one found.</p>}
+                {results.map((u) => (
+                  <PersonRow key={u.id} person={u}>
+                    {u.friendship_status === "none" && (
+                      <button className="btn btn--soft btn--sm" onClick={() => act(api.sendFriendRequest({ username: u.username }), "Friend request sent")}>
+                        <Icon name="plus" size={14} /> Add
+                      </button>
+                    )}
+                    {u.friendship_status === "pending_outgoing" && <span className="statusPill">Requested</span>}
+                    {u.friendship_status === "pending_incoming" && (
+                      <button className="btn btn--primary btn--sm" onClick={() => act(api.sendFriendRequest({ username: u.username }), "You're now friends!")}>
+                        Accept
+                      </button>
+                    )}
+                    {u.friendship_status === "friends" && <span className="statusPill statusPill--watched">Friends</span>}
+                  </PersonRow>
                 ))}
               </div>
             )}
-          </div>
+          </section>
         </div>
-      )}
+
+        <div className="friendsCol">
+          {data.incoming.length > 0 && (
+            <section className="panel panel--highlight">
+              <h2 className="panelTitle">
+                Requests <span className="countPill">{data.incoming.length}</span>
+              </h2>
+              <div className="personList">
+                {data.incoming.map((r) => (
+                  <PersonRow key={r.friendship_id} person={r}>
+                    <button className="btn btn--primary btn--sm" onClick={() => act(api.acceptFriend(r.friendship_id), `You and ${displayName(r)} are now friends`)}>
+                      Accept
+                    </button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => act(api.declineFriend(r.friendship_id))}>
+                      Decline
+                    </button>
+                  </PersonRow>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="panel">
+            <h2 className="panelTitle">
+              Your friends <span className="countPill">{data.friends.length}</span>
+            </h2>
+            {loaded && data.friends.length === 0 ? (
+              <p className="muted small">No friends yet — add someone with their code or username.</p>
+            ) : (
+              <div className="personList">
+                {data.friends.map((f) => (
+                  <PersonRow key={f.friendship_id} person={f} onClick={() => setHistoryFriend(f)}>
+                    <button className="btn btn--ghost btn--sm" onClick={() => setHistoryFriend(f)}>
+                      <Icon name="inbox" size={14} /> History
+                    </button>
+                    <button
+                      className="iconBtn"
+                      aria-label={`Remove ${displayName(f)}`}
+                      title="Remove friend"
+                      onClick={async () => {
+                        if (await confirm({ title: `Remove ${displayName(f)}?`, message: "You can always add each other again.", confirmLabel: "Remove", danger: true })) {
+                          act(api.removeFriend(f.friendship_id));
+                        }
+                      }}
+                    >
+                      <Icon name="x" size={16} />
+                    </button>
+                  </PersonRow>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {data.outgoing.length > 0 && (
+            <section className="panel">
+              <h2 className="panelTitle">Waiting on them</h2>
+              <div className="personList">
+                {data.outgoing.map((r) => (
+                  <PersonRow key={r.friendship_id} person={r}>
+                    <span className="muted small">{timeAgo(r.created_at)}</span>
+                    <button className="btn btn--ghost btn--sm" onClick={() => act(api.cancelFriendRequest(r.friendship_id), "Request cancelled")}>
+                      Cancel
+                    </button>
+                  </PersonRow>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+
+      {historyFriend && <HistoryModal friend={historyFriend} onClose={closeHistory} />}
     </div>
   );
 }

@@ -50,128 +50,119 @@ A movie-tracking app that goes beyond a plain watchlist: rate and review what yo
 ## Features
 
 ### Track what you watch
-- **Search** any movie or show (powered by OMDb) and add it to **Watched** or **Watch Later** with one click.
-- Rate watched movies (1–10) and leave a personal comment/review.
-- Leave a note on Watch Later items explaining why you want to see them.
-- Click any movie card to open a full detail view with **plot summary, cast, director, and runtime**.
-- Move items between Watched and Watch Later, or remove them, at any time.
-- "See All" view for browsing your full Watched / Watch Later lists beyond the horizontal preview row.
+- **Search** any movie, show, actor, director or genre with instant as-you-type suggestions (press <kbd>/</kbd> anywhere to jump to search).
+- Add titles to **Watched** or **Watch Later** in one click, straight from any poster.
+- Rate watched titles with a 10-star picker and keep a personal review; leave a note on Watch Later items explaining why you want to see them.
+- **Rewatch tracking** — log every time you watch something again.
+- A full title view with backdrop, cast, director, runtime, TMDB + IMDb ratings, **trailer**, **where to stream / rent / buy in your country** (JustWatch data via TMDB) and "More like this".
+- Watched and Watch Later pages with filtering (text, film/series, genre) and sorting (rating, date, year, title, most rewatched).
+- Remove anything with one-click **Undo**.
 
 ### Recommendations that are actually precise
-- Recommendations are built from the movies you've rated **8 or above**, using real genre, cast, and director overlap (via TMDB's discovery and recommendation graph, not just keyword guessing) — the closest matches to your taste fill the list first, with broader genre-based picks only used to top it up.
-- Brand new accounts (nothing rated yet) see a curated list of globally top-rated movies to start with, instead of an empty section.
-- The "Recommended For You" row auto-scrolls on its own (pauses on hover) and "Get More" fetches genuinely new picks rather than repeating ones you've already seen.
+- **Because-you-liked-X** picks built from TMDB's recommendation graph for the titles you've watched, weighted by how highly you rated them, plus more from the directors behind your favourites.
+- Re-ranked by your **genre taste profile**, quality, and a diversity pass so one favourite doesn't take over. Each pick explains *why* it's there, and **hidden gems** get flagged.
+- Brand new accounts get picks seeded from the genres chosen during onboarding.
+- **Discover**: trending this week, coming soon (for your region), in cinemas, top rated — and **mood picks** (feel-good, mind-bending, tearjerker…) with a **Surprise me** button.
+- **Dashboard** with stats, your taste profile and all-time favourites.
 
 ### Friends & sharing
-- Add friends via username search or by sharing your unique **friend code** — handy since display names aren't unique.
-- Friend requests require acceptance on both sides; no one can see your lists just by being your friend.
-- Share a movie from your Watched or Watch Later list with a friend, along with a comment on why you're sending it.
-- Shared movies land in an inbox-style "Shared With You" section; accepting one adds it straight to your Watch Later.
-- View your full sharing history with any friend — what you've sent and received, and whether it was added or dismissed.
+- Add friends by username search or by your unique **friend code**; requests need acceptance (and can be cancelled).
+- Share any title — from your lists, search or recommendations — with one or more friends, with a note on why.
+- Shared titles land in a "Shared with you" inbox; one click adds them to Watch Later.
+- Full sharing history with each friend. Your lists stay private.
 
 ### Accounts
-- Signup/login with secure password hashing and JWT-based sessions.
-- Edit your display name and see your auto-generated avatar (colored initials, no upload needed).
+- Signup/login with salted PBKDF2 password hashing and JWT sessions; change password; edit display name and favourite genres.
+- **Export all your data** as JSON and **delete your account** from the profile page.
 
 ## Tech stack
 
-**Frontend:** React 19, React Router, Vite
-**Backend:** FastAPI, SQLAlchemy, PostgreSQL
-**External APIs:** [OMDb](https://www.omdbapi.com/) (movie data/posters), [TMDB](https://www.themoviedb.org/documentation/api) (recommendation discovery)
+**Frontend:** React 19, React Router, Vite — plain CSS design system
+**Backend:** Cloudflare Workers ([Hono](https://hono.dev)) + Cloudflare D1 (SQLite)
+**Hosting:** a single Cloudflare Worker serves both the API (`/api/*`) and the static app
+**External APIs:** [TMDB](https://www.themoviedb.org/documentation/api) (catalogue, search, recommendations, providers), [OMDb](https://www.omdbapi.com/) (IMDb ratings)
+
+### Why it's fast
+- No cold starts — Workers run at the edge, next to the user.
+- Search and recommendations use TMDB data directly (one or two parallel calls) instead of hydrating every result through OMDb; TMDB responses are memoised in the isolate and cached at Cloudflare's edge.
+- The whole library, friends list and inbox load in **one request / one D1 batch**; every change after that is optimistic (the UI updates instantly and reconciles in the background).
+- Recommendations, discover rows and search results are cached client-side (stale-while-revalidate), so revisiting a page is instant.
 
 ## Getting started
 
-### Backend
+Requirements: Node 20+, a free [Cloudflare account](https://dash.cloudflare.com/sign-up), TMDB + OMDb API keys.
 
 ```bash
-cd backend
-python -m venv venv
-venv/Scripts/activate      # venv\Scripts\activate.bat on Windows cmd, source venv/bin/activate on macOS/Linux
-pip install -r requirements.txt
+npm install                 # installs the Worker deps and the frontend (postinstall)
 ```
 
-Create a `.env` file in `backend/`:
+Create a `.dev.vars` file in the repo root (git-ignored) with your secrets:
 
 ```
-OMDB_API_KEY=your_omdb_key
 TMDB_API_KEY=your_tmdb_key
-DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/dejaview
-SECRET_KEY=some_random_secret
-ACCESS_TOKEN_EXPIRE_MINUTES=10080
+OMDB_API_KEY=your_omdb_key
+JWT_SECRET=any_long_random_string
+ANTHROPIC_API_KEY=your_anthropic_key   # optional: AI plot round in quizzes
 ```
 
-Run the one-off migration scripts (first-time setup only, safe to re-run):
+Create the local database and run:
 
 ```bash
-python migrate_add_users.py
-python migrate_add_display_name.py
-python migrate_add_friend_code.py
+npm run db:migrate:local    # creates the D1 tables locally
+npm run dev:api             # Worker API on http://127.0.0.1:8787
+npm run dev:web             # Vite on http://localhost:5173 (proxies /api to the Worker)
 ```
 
-Start the API:
+`npm run dev` instead builds the frontend once and serves everything from the Worker on :8787.
+
+## Deploying to Cloudflare
 
 ```bash
-uvicorn main:app --reload
+npx wrangler login
+npx wrangler d1 create deja-view --location apac   # pick the region closest to your users
 ```
 
-### Frontend
+Copy the printed `database_id` into [wrangler.jsonc](wrangler.jsonc), then:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+npm run db:migrate:remote
+npx wrangler secret put TMDB_API_KEY
+npx wrangler secret put OMDB_API_KEY
+npx wrangler secret put JWT_SECRET
+npx wrangler secret put ANTHROPIC_API_KEY   # optional
+npm run deploy              # builds the frontend and deploys the Worker
 ```
 
-The app expects the backend at `http://127.0.0.1:8000` and runs on `http://localhost:5173` by default.
+The app is then live at `https://deja-view.<your-subdomain>.workers.dev`. To use your own domain,
+add a custom domain to the Worker in the Cloudflare dashboard (Workers & Pages → deja-view → Settings → Domains & Routes).
 
-## Deploying
+### Migrating data from the old Render/Postgres backend
 
-Netlify only serves the static frontend — it can't run the FastAPI backend or Postgres.
-Deploy the backend first, then the frontend, pointing it at the backend's URL.
+[scripts/migrate_postgres_to_d1.py](scripts/migrate_postgres_to_d1.py) exports users (password hashes
+included — everyone keeps their password), libraries, friendships and shares, and backfills TMDB ids:
 
-### 1. Backend + database (Render)
-
-A [render.yaml](render.yaml) blueprint provisions a free Postgres database and a
-web service for the API in one step:
-
-1. Push this repo to GitHub (if not already).
-2. In Render, click **New > Blueprint** and select the repo — it reads `render.yaml` automatically.
-3. When prompted, fill in `OMDB_API_KEY`, `TMDB_API_KEY`, and `CORS_ORIGINS` (leave `CORS_ORIGINS` blank for now — you'll set it after step 2).
-4. Deploy. Note the resulting API URL, e.g. `https://dejaview-api.onrender.com`.
-
-### 2. Frontend (Netlify)
-
-```powershell
-./deploy-netlify.ps1 -BackendUrl https://dejaview-api.onrender.com
+```bash
+backend/venv/Scripts/python.exe scripts/migrate_postgres_to_d1.py --database-url "<Render External Database URL>"
+npx wrangler d1 execute deja-view --remote --file=scripts/d1_import.sql
 ```
 
-This installs the Netlify CLI if needed, links/creates a Netlify site, sets
-`VITE_API_BASE` to your backend URL, builds, and deploys to production.
-[netlify.toml](netlify.toml) also configures the same build settings for Netlify's
-Git-connected dashboard flow, in case you prefer clicking through the UI instead.
-
-### 3. Close the loop on CORS
-
-Once you have the Netlify URL (e.g. `https://dejaview.netlify.app`), go back to the
-Render service's environment variables and set `CORS_ORIGINS` to it (comma-separate
-multiple origins), then redeploy the backend.
+Old bcrypt hashes are verified once on first login and transparently upgraded.
 
 ## Project structure
 
 ```
-backend/
-  main.py                 # All API routes
-  app/
-    models/                # SQLAlchemy models (movie, user, friendship, shared_movie)
-    schemas/                # Pydantic request/response schemas
-    auth.py                 # Password hashing, JWT, friend code generation
-    db/                     # DB engine/session setup
-  migrate_*.py             # One-off schema migrations
-
+wrangler.jsonc             # Worker + D1 + static assets config
+worker/
+  src/index.js             # Hono app: auth middleware, routing, errors
+  src/routes/              # account, library, catalog (search/titles/discover), recs, social
+  src/tmdb.js              # TMDB/OMDb client, caching, card normalisation
+  src/auth.js              # PBKDF2 (+ legacy bcrypt) hashing, JWT, friend codes
+  migrations/              # D1 schema
 frontend/
-  src/
-    pages/                 # HomePage, SearchPage, FriendsPage, ProfilePage, Login/Signup
-    components/            # MovieCard, Avatar, RequireAuth
-    context/                # AuthContext (session + current user)
-    api.js                  # Fetch wrapper for the backend
+  src/pages/               # Home, For You, Discover, Search, Watched/Watch Later, Friends, Profile, auth
+  src/components/          # PosterCard, Row, TitleModal, SearchBox, Layout, RatingInput…
+  src/context/             # Auth, Library (optimistic store), TitleModal, Toast, Confirm
+  src/lib/                 # SWR cache, formatting helpers
+scripts/                   # Postgres → D1 migration
+backend/                   # Legacy FastAPI backend (kept for reference, no longer deployed)
 ```

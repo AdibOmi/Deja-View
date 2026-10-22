@@ -12,3 +12,11 @@ backend/.env
 
 # Local Netlify folder
 .netlify
+
+# Cloudflare / Node
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+scripts/d1_import*.sql
+frontend/.netlify

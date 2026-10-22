@@ -1,0 +1,25 @@
+{
+  "name": "deja-view",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "postinstall": "npm --prefix frontend install",
+    "build": "npm --prefix frontend run build",
+    "dev": "npm run build && wrangler dev",
+    "dev:api": "wrangler dev --port 8787",
+    "dev:web": "npm --prefix frontend run dev",
+    "db:migrate:local": "wrangler d1 migrations apply deja-view --local",
+    "db:migrate:remote": "wrangler d1 migrations apply deja-view --remote",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.132.1",
+    "bcryptjs": "3.0.3",
+    "hono": "4.13.13",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "wrangler": "4.145.0"
+  }
+}

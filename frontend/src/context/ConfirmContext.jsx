@@ -1,36 +1,53 @@
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const ConfirmContext = createContext(null);
 
+// confirm("Remove this?") or confirm({ title, message, confirmLabel, danger })
 export function ConfirmProvider({ children }) {
-  const [message, setMessage] = useState(null);
+  const [dialog, setDialog] = useState(null);
   const resolveRef = useRef(null);
+  const confirmBtnRef = useRef(null);
 
-  const confirm = useCallback((text) => {
+  const confirm = useCallback((opts) => {
+    const config = typeof opts === "string" ? { message: opts } : opts;
     return new Promise((resolve) => {
       resolveRef.current = resolve;
-      setMessage(text);
+      setDialog(config);
     });
   }, []);
 
   function respond(result) {
     resolveRef.current?.(result);
-    setMessage(null);
+    resolveRef.current = null;
+    setDialog(null);
   }
+
+  useEffect(() => {
+    if (!dialog) return;
+    confirmBtnRef.current?.focus();
+    const onKey = (e) => e.key === "Escape" && respond(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialog]);
 
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
-      {message && (
-        <div className="confirmOverlay" onClick={() => respond(false)}>
-          <div className="confirmDialog" onClick={(e) => e.stopPropagation()}>
-            <p>{message}</p>
-            <div className="buttonRow">
-              <button className="watchedBtn" onClick={() => respond(true)}>
-                Confirm
-              </button>
-              <button className="cancelBtn" onClick={() => respond(false)}>
+      {dialog && (
+        <div className="overlay overlay--center" onClick={() => respond(false)}>
+          <div className="dialog" role="alertdialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            {dialog.title && <h3 className="dialogTitle">{dialog.title}</h3>}
+            <p className="dialogMsg">{dialog.message}</p>
+            <div className="dialogActions">
+              <button className="btn btn--ghost" onClick={() => respond(false)}>
                 Cancel
+              </button>
+              <button
+                ref={confirmBtnRef}
+                className={`btn ${dialog.danger ? "btn--danger" : "btn--primary"}`}
+                onClick={() => respond(true)}
+              >
+                {dialog.confirmLabel || "Confirm"}
               </button>
             </div>
           </div>

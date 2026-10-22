@@ -1,68 +1,55 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import "./AuthPage.css";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import AuthShell from "./AuthShell";
 import { useAuth } from "../context/AuthContext";
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-
+  const location = useLocation();
+  const { login, isAuthenticated } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const from = location.state?.from || "/";
+  if (isAuthenticated && !submitting) return <Navigate to={from} replace />;
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSubmitting(true);
     try {
-      await login(username, password);
-      navigate("/");
+      await login(username.trim(), password);
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || "Failed to log in");
-    } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="authScreen">
-      <div className="authCard">
-        <h1 className="authTitle">Deja View</h1>
-        <p className="authSubtitle">Log in to see your movies.</p>
-
-        {error && <div className="authError">{error}</div>}
-
-        <form className="authForm" onSubmit={handleSubmit}>
-          <label>
-            Username
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoFocus
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
-          <button type="submit" className="authSubmitBtn" disabled={submitting}>
-            {submitting ? "Logging in…" : "Log In"}
-          </button>
-        </form>
-
+    <AuthShell>
+      <form className="authCard" onSubmit={handleSubmit}>
+        <h1 className="authTitle">Welcome back</h1>
+        <p className="authSub">Log in to pick up where you left off.</p>
+        {error && <div className="formError" role="alert">{error}</div>}
+        <label className="field">
+          <span>Username</span>
+          <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required autoFocus />
+        </label>
+        <label className="field">
+          <span>Password</span>
+          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        </label>
+        <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={submitting}>
+          {submitting ? "Logging in…" : "Log in"}
+        </button>
         <p className="authSwitch">
-          Don't have an account? <Link to="/signup">Sign up</Link>
+          New here? <Link to="/signup">Create an account</Link>
         </p>
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   );
 }
 

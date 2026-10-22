@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Context modules export their provider plus a matching hook.
+    files: ['src/context/**/*.jsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ])
