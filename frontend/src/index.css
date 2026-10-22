@@ -1180,6 +1180,11 @@ img {
 .statLine a:hover {
   color: var(--text);
 }
+.statLine a.hintLink {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .statLine strong {
   color: var(--text-2);
   font-weight: 600;
@@ -1348,33 +1353,6 @@ img {
   padding-top: 4px;
 }
 
-.welcomeCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-  padding: 26px 28px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: radial-gradient(circle at 0% 0%, rgba(201, 20, 29, 0.14), transparent 50%),
-    radial-gradient(circle at 100% 100%, rgba(255, 138, 143, 0.14), transparent 50%), var(--surface);
-}
-.welcomeCard > div:first-child {
-  max-width: 560px;
-}
-.welcomeTitle {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 20px;
-  margin-bottom: 6px;
-}
-.welcomeActions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
 
 .nudge {
   display: flex;
@@ -1393,11 +1371,6 @@ img {
 
 /* -------------------------------------------------------------- discover */
 
-.moodGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
 .moodChip {
   display: inline-flex;
   align-items: center;
@@ -1421,12 +1394,6 @@ img {
   background: var(--surface-3);
   border-color: var(--text-3);
   color: var(--text);
-}
-.moodEmoji {
-  font-size: 17px;
-}
-.moodResults {
-  animation: pageIn 0.3s var(--ease);
 }
 
 /* ---------------------------------------------------------------- search */
@@ -2660,9 +2627,6 @@ img {
   }
   .pageHead .btn {
     height: 36px;
-  }
-  .welcomeCard {
-    padding: 20px;
   }
   .inlineForm {
     flex-wrap: wrap;

@@ -124,28 +124,6 @@ function SharedWithYou({ inbox }) {
   );
 }
 
-function WelcomeCard({ name }) {
-  return (
-    <section className="welcomeCard">
-      <div>
-        <h2 className="welcomeTitle">Welcome to Deja View, {name}.</h2>
-        <p className="muted">
-          Log a few things you've watched — rate them and your recommendations sharpen instantly. Everything you save stays
-          right here, with your notes on why you loved it.
-        </p>
-      </div>
-      <div className="welcomeActions">
-        <Link className="btn btn--primary" to="/search">
-          <Icon name="search" size={16} /> Find something you've seen
-        </Link>
-        <Link className="btn btn--soft" to="/discover">
-          <Icon name="compass" size={16} /> Browse by mood
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 function HomePage() {
   const { user } = useAuth();
   const lib = useLibrary();
@@ -169,11 +147,19 @@ function HomePage() {
           <h1 className="pageTitle">
             {greeting()}, {user ? name : "…"}
           </h1>
-          {lib.loaded && !isNew && <Stats watched={lib.watched} watchlist={lib.watchlist} />}
+          {lib.loaded &&
+            (isNew ? (
+              <p className="statLine">
+                <Link className="hintLink" to="/search">
+                  Search for something you've watched
+                </Link>{" "}
+                to start your library.
+              </p>
+            ) : (
+              <Stats watched={lib.watched} watchlist={lib.watchlist} />
+            ))}
         </div>
       </header>
-
-      {isNew && <WelcomeCard name={name} />}
 
       <OutNow reminders={lib.dueReminders} />
       <QuizChallenges invites={lib.quizInvites} />
