@@ -1163,6 +1163,19 @@ img {
 .rowTrack::-webkit-scrollbar {
   display: none;
 }
+/* Cards in a row stretch to the tallest one, so keep badge + reason on a
+   single line here; otherwise one wrapped chip pads out the whole row. */
+.rowTrack .posterMeta .chipRow {
+  flex-wrap: nowrap;
+}
+.rowTrack .posterMeta .chip {
+  display: block;
+  white-space: nowrap;
+  min-width: 0;
+}
+.rowTrack .posterMeta .chip--teal {
+  flex-shrink: 0;
+}
 .rowTrack .emptyCard {
   flex: 1;
 }
@@ -1197,7 +1210,7 @@ img {
 .homeMain {
   display: flex;
   flex-direction: column;
-  gap: 34px;
+  gap: 30px;
   min-width: 0;
 }
 .tasteBars {
