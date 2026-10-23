@@ -121,4 +121,16 @@ export const api = {
   submitQuiz: (id, answers) => apiFetch(`/quizzes/${id}/attempts`, { body: { answers } }),
   inviteToQuiz: (id, friendUserIds) => apiFetch(`/quizzes/${id}/invite`, { body: { friend_user_ids: friendUserIds } }),
   dismissQuizInvite: (id) => apiFetch(`/quiz-invites/${id}/dismiss`, { method: "POST" }),
+
+  admin: {
+    stats: () => apiFetch("/admin/stats"),
+    users: (q = "") => apiFetch(`/admin/users?q=${encodeURIComponent(q)}`),
+    user: (id) => apiFetch(`/admin/users/${id}`),
+    updateUser: (id, patch) => apiFetch(`/admin/users/${id}`, { method: "PATCH", body: patch }),
+    resetPassword: (id, new_password) => apiFetch(`/admin/users/${id}/password`, { body: { new_password } }),
+    deleteUser: (id) => apiFetch(`/admin/users/${id}`, { method: "DELETE" }),
+    removeLibraryItem: (userId, movieId) => apiFetch(`/admin/users/${userId}/library/${movieId}`, { method: "DELETE" }),
+    quizzes: () => apiFetch("/admin/quizzes"),
+    deleteQuiz: (id) => apiFetch(`/admin/quizzes/${id}`, { method: "DELETE" }),
+  },
 };

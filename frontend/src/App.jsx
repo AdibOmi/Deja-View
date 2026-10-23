@@ -22,6 +22,7 @@ import NewsPage from "./pages/NewsPage";
 import QuizzesPage from "./pages/QuizzesPage";
 import QuizPage from "./pages/QuizPage";
 import TastePage from "./pages/TastePage";
+import AdminPage from "./pages/AdminPage";
 
 function SignedIn() {
   return (
@@ -65,6 +66,7 @@ function App() {
                 <Route path="quiz/:id" element={<QuizPage />} />
                 <Route path="taste" element={<TastePage />} />
                 <Route path="profile" element={<ProfilePage />} />
+                <Route path="admin" element={<AdminPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>

@@ -18,6 +18,7 @@ const NAV = [
   { to: "/friends", label: "Friends", icon: "users" },
   { to: "/taste", label: "Your Taste", icon: "chart" },
 ];
+const ADMIN_NAV = { to: "/admin", label: "Admin", icon: "shield" };
 
 function Brand() {
   return (
@@ -57,7 +58,7 @@ function Layout() {
       <aside className="sidebar">
         <Brand />
         <nav className="sideNav" aria-label="Main">
-          {NAV.map((item) => (
+          {(user?.is_admin ? [...NAV, ADMIN_NAV] : NAV).map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className="sideLink">
               <Icon name={item.icon} size={18} />
               <span>{item.label}</span>

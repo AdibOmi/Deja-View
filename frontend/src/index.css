@@ -3045,3 +3045,38 @@ img {
     font-size: 17px;
   }
 }
+
+/* ----------------------------------------------------------------- admin */
+
+.chip--danger {
+  background: var(--red-a);
+  border-color: transparent;
+  color: var(--red);
+}
+.adminCols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.adminCols .sectionTitle {
+  margin-bottom: 12px;
+}
+.adminSheet {
+  max-width: 680px;
+}
+.adminSheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 20px;
+  overflow-y: auto;
+}
+.adminSheetBody .panelSub {
+  margin-top: 4px;
+}
+@media (max-width: 760px) {
+  .adminCols {
+    grid-template-columns: 1fr;
+  }
+}
