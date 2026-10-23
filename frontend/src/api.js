@@ -89,8 +89,10 @@ export const api = {
   search: (query, signal) => apiFetch(`/search?query=${encodeURIComponent(query)}`, { signal }),
   title: (mediaType, tmdbId) => apiFetch(`/titles/${mediaType}/${tmdbId}`),
   titleByImdb: (imdbId) => apiFetch(`/titles/imdb/${imdbId}`),
-  recommendations: ({ page = 1, limit = 24, exclude = [] } = {}) =>
-    apiFetch(`/recommendations?page=${page}&limit=${limit}&exclude=${encodeURIComponent(exclude.join(","))}`),
+  recommendations: ({ page = 1, limit = 24, exclude = [], shuffle = false } = {}) =>
+    apiFetch(
+      `/recommendations?page=${page}&limit=${limit}&exclude=${encodeURIComponent(exclude.join(","))}${shuffle ? "&shuffle=1" : ""}`
+    ),
   discover: () => apiFetch("/discover"),
   mood: (mood, page = 1) => apiFetch(`/discover/mood/${mood}?page=${page}`),
 

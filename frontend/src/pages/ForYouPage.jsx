@@ -24,6 +24,7 @@ function ForYouPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [exhausted, setExhausted] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [refreshing, setRefreshing] = useState(false);
 
   const all = [...(first.data?.movies || []), ...extra];
   const seen = new Set();
@@ -54,11 +55,25 @@ function ForYouPage() {
     }
   }
 
+  // Ask for a fresh, shuffled set that skips what's on screen now; falls back
+  // to a plain reshuffle if excluding them leaves nothing. Writing through
+  // mutate() also updates the Home page row, which shares this cache key.
   async function refresh() {
-    setExtra([]);
-    setPage(1);
-    setExhausted(false);
-    await first.refresh();
+    if (!first.data) return first.refresh();
+    setRefreshing(true);
+    try {
+      let data = await api.recommendations({ limit: 24, exclude: all.map(titleKey), shuffle: true });
+      if (!data.movies.length) data = await api.recommendations({ limit: 24, shuffle: true });
+      first.mutate(data);
+      setExtra([]);
+      setPage(1);
+      setExhausted(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   return (
@@ -70,8 +85,8 @@ function ForYouPage() {
             <p className="pageSub">Rate a few things you've watched to make these personal.</p>
           )}
         </div>
-        <button className="btn btn--ghost" onClick={refresh} disabled={first.loading}>
-          <Icon name="repeat" size={15} /> Refresh
+        <button className="btn btn--ghost" onClick={refresh} disabled={first.loading || refreshing}>
+          <Icon name="repeat" size={15} /> {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </header>
 

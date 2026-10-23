@@ -8,13 +8,23 @@ import { RowSkeleton } from "./Skeleton";
 function Row({ title, hint, seeAllTo, seeAllLabel = "See all", loading, empty, autoScroll = false, children, accent }) {
   const trackRef = useRef(null);
   const pausedRef = useRef(false);
+  const edgeFrameRef = useRef(0);
   const [edges, setEdges] = useState({ start: true, end: false });
 
+  // Coalesced to one check per frame, and only re-renders when an edge flips.
   function updateEdges() {
-    const el = trackRef.current;
-    if (!el) return;
-    setEdges({ start: el.scrollLeft < 8, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 8 });
+    if (edgeFrameRef.current) return;
+    edgeFrameRef.current = requestAnimationFrame(() => {
+      edgeFrameRef.current = 0;
+      const el = trackRef.current;
+      if (!el) return;
+      const start = el.scrollLeft < 8;
+      const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
+      setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+    });
   }
+
+  useEffect(() => () => cancelAnimationFrame(edgeFrameRef.current), []);
 
   useEffect(() => {
     updateEdges();
@@ -32,22 +42,21 @@ function Row({ title, hint, seeAllTo, seeAllLabel = "See all", loading, empty, a
     if (!el) return;
     let frame;
     let last = performance.now();
-    let carry = 0;
+    // Track a fractional position so motion is sub-pixel smooth; resync from
+    // the element whenever the user has scrolled it themselves.
+    let pos = el.scrollLeft;
     function step(now) {
       const dt = Math.min(now - last, 50);
       last = now;
-      if (!pausedRef.current && !document.hidden && el.scrollWidth > el.clientWidth) {
-        if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 1) {
-          el.scrollTo({ left: 0, behavior: "smooth" });
-          pausedRef.current = true;
-          setTimeout(() => (pausedRef.current = false), 1500);
-        } else {
-          carry += dt * 0.025;
-          if (carry >= 1) {
-            el.scrollLeft += Math.floor(carry);
-            carry -= Math.floor(carry);
-          }
-        }
+      if (pausedRef.current || document.hidden || el.scrollWidth <= el.clientWidth) {
+        pos = el.scrollLeft;
+      } else {
+        const max = el.scrollWidth - el.clientWidth;
+        if (Math.abs(el.scrollLeft - pos) > 2) pos = el.scrollLeft;
+        // Stop for good at the end rather than wrapping back to the start.
+        if (pos >= max - 1) return;
+        pos = Math.min(pos + dt * 0.03, max);
+        el.scrollLeft = pos;
       }
       frame = requestAnimationFrame(step);
     }
@@ -91,7 +100,7 @@ function Row({ title, hint, seeAllTo, seeAllLabel = "See all", loading, empty, a
         <div className="emptyCard">{empty}</div>
       ) : (
         <div
-          className="rowTrack"
+          className={`rowTrack${autoScroll ? " rowTrack--auto" : ""}`}
           ref={trackRef}
           onScroll={updateEdges}
           onMouseEnter={pause}

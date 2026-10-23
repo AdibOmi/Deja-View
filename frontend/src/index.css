@@ -1156,6 +1156,10 @@ img {
   margin: -6px -2px 0;
   scrollbar-width: none;
 }
+/* Snap points fight the continuous auto-scroll and make it judder. */
+.rowTrack--auto {
+  scroll-snap-type: none;
+}
 .rowTrack::-webkit-scrollbar {
   display: none;
 }
