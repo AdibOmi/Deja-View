@@ -59,7 +59,7 @@ function DiscoverPage() {
         </button>
       </header>
 
-      <Row title="Trending this week" loading={loading && !data} empty={error && !data ? "Couldn't load trending titles." : null} accent="accent">
+      <Row title="Trending this week" loading={loading && !data} empty={error && !data ? "Couldn't load trending titles." : null} autoScroll accent="accent">
         {row(data?.trending)}
       </Row>
       {data?.upcoming?.length > 0 && (

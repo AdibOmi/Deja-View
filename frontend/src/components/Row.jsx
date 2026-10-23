@@ -55,7 +55,7 @@ function Row({ title, hint, seeAllTo, seeAllLabel = "See all", loading, empty, a
         if (Math.abs(el.scrollLeft - pos) > 2) pos = el.scrollLeft;
         // Stop for good at the end rather than wrapping back to the start.
         if (pos >= max - 1) return;
-        pos = Math.min(pos + dt * 0.03, max);
+        pos = Math.min(pos + dt * 0.045, max);
         el.scrollLeft = pos;
       }
       frame = requestAnimationFrame(step);
